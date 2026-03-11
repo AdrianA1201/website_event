@@ -1,5 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { QrCode, LayoutDashboard, Settings, Users, UserCog, LogOut } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../firebase';
 
 export default function Navigation() {
   const location = useLocation();
@@ -13,10 +15,9 @@ export default function Navigation() {
     { to: '/users', label: 'Users', icon: UserCog },
   ];
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate('/login');
   };
 
   return (

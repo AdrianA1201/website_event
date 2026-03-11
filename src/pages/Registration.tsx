@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import { CheckCircle2, Loader2 } from 'lucide-react';
+import { doc, getDoc, collection, addDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface Config {
   event_name: string;
@@ -24,38 +26,42 @@ export default function Registration() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    fetch('/api/config', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setConfig(data);
+    const fetchConfig = async () => {
+      try {
+        const docRef = doc(db, 'config', 'default');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setConfig(docSnap.data() as Config);
+        } else {
+          console.error("No such config document!");
+        }
+      } catch (err) {
+        console.error("Error fetching config:", err);
+      } finally {
         setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
+      }
+    };
+    fetchConfig();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(formData),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setBarcodeId(data.barcode_id);
-      }
+      const generatedBarcodeId = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const registrationData = {
+        barcode_id: generatedBarcodeId,
+        name: formData.name,
+        department: formData.department,
+        checked_in: false,
+        created_at: new Date().toISOString(),
+      };
+      
+      if (formData.phone) (registrationData as any).phone = formData.phone;
+      if (formData.company) (registrationData as any).company = formData.company;
+
+      await addDoc(collection(db, 'registrations'), registrationData);
+      setBarcodeId(generatedBarcodeId);
     } catch (error) {
       console.error('Registration failed:', error);
     } finally {

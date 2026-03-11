@@ -2,16 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'react-qr-code';
 import { Loader2, Download, Search, Upload, FileSpreadsheet, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { collection, onSnapshot, query, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface Registration {
-  id: number;
+  id: string;
   barcode_id: string;
   name: string;
   department: string;
   phone: string | null;
   company: string | null;
-  checked_in: number;
-  created_at: string;
+  checked_in: boolean;
+  created_at: any;
 }
 
 export default function Attendees() {
@@ -21,24 +23,27 @@ export default function Attendees() {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchRegistrations = () => {
-    const token = localStorage.getItem('token');
-    fetch('/api/registrations', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setRegistrations(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
-  };
-
   useEffect(() => {
-    fetchRegistrations();
+    const q = query(collection(db, 'registrations'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const regs: Registration[] = [];
+      snapshot.forEach((doc) => {
+        regs.push({ ...doc.data() as Registration, id: doc.id });
+      });
+      // Sort by created_at descending
+      regs.sort((a, b) => {
+        const timeA = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
+        const timeB = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
+        return timeB - timeA;
+      });
+      setRegistrations(regs);
+      setLoading(false);
+    }, (error) => {
+      console.error(error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const downloadTemplate = () => {
@@ -68,7 +73,9 @@ export default function Attendees() {
         const attendees = data.map((row: any) => ({
           name: row.Nama || row.nama || row.Name || row.name,
           department: row.Department || row.department || row.Dept || row.dept,
-          qr_code: row['QR Code'] || row.qr_code || row.QRCode || row.qrcode || row.Barcode || row.barcode || null,
+          barcode_id: row['QR Code'] || row.qr_code || row.QRCode || row.qrcode || row.Barcode || row.barcode || Math.random().toString(36).substring(2, 10).toUpperCase(),
+          checked_in: false,
+          created_at: new Date()
         })).filter((a) => a.name && a.department);
 
         if (attendees.length === 0) {
@@ -77,23 +84,17 @@ export default function Attendees() {
           return;
         }
 
-        const token = localStorage.getItem('token');
-        const res = await fetch('/api/register/batch', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ attendees }),
+        // Batch write to Firestore
+        const batch = writeBatch(db);
+        const registrationsRef = collection(db, 'registrations');
+        
+        attendees.forEach((attendee) => {
+          const newDocRef = doc(registrationsRef);
+          batch.set(newDocRef, attendee);
         });
 
-        if (res.ok) {
-          alert(`Successfully imported ${attendees.length} attendees.`);
-          fetchRegistrations();
-        } else {
-          const errorData = await res.json();
-          alert(`Import failed: ${errorData.error || 'Unknown error'}`);
-        }
+        await batch.commit();
+        alert(`Successfully imported ${attendees.length} attendees.`);
       } catch (error) {
         console.error('Error parsing Excel file:', error);
         alert('Failed to parse Excel file.');
@@ -132,20 +133,10 @@ export default function Attendees() {
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this attendee?')) return;
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this attendee?')) return;
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/registrations/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchRegistrations();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete attendee');
-      }
+      await deleteDoc(doc(db, 'registrations', id));
     } catch (err) {
       alert('An error occurred while deleting attendee');
     }

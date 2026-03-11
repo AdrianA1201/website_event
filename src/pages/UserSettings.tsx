@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Trash2, KeyRound, Loader2 } from 'lucide-react';
+import { collection, onSnapshot, query, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface User {
-  id: number;
-  username: string;
-  created_at: string;
+  id: string;
+  email: string;
+  role: string;
 }
 
 export default function UserSettings() {
@@ -12,58 +14,37 @@ export default function UserSettings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  const [newUsername, setNewUsername] = useState('');
-  const [newPassword, setNewPassword] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const [changePasswordId, setChangePasswordId] = useState<number | null>(null);
-  const [changePasswordValue, setChangePasswordValue] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
-
-  const fetchUsers = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/users', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
-      } else {
-        setError('Failed to fetch users');
-      }
-    } catch (err) {
-      setError('An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchUsers();
+    const q = query(collection(db, 'users'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const usersData: User[] = [];
+      snapshot.forEach((doc) => {
+        usersData.push({ ...doc.data() as User, id: doc.id });
+      });
+      setUsers(usersData);
+      setLoading(false);
+    }, (error) => {
+      console.error(error);
+      setError('Failed to fetch users');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ username: newUsername, password: newPassword })
+      // Use email as document ID for simplicity in this example
+      await setDoc(doc(db, 'users', newEmail), {
+        email: newEmail,
+        role: 'admin'
       });
-      if (res.ok) {
-        setNewUsername('');
-        setNewPassword('');
-        fetchUsers();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create user');
-      }
+      setNewEmail('');
     } catch (err) {
       alert('An error occurred');
     } finally {
@@ -71,50 +52,12 @@ export default function UserSettings() {
     }
   };
 
-  const handleDeleteUser = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+  const handleDeleteUser = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/users/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchUsers();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to delete user');
-      }
+      await deleteDoc(doc(db, 'users', id));
     } catch (err) {
-      alert('An error occurred');
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent, id: number) => {
-    e.preventDefault();
-    setChangingPassword(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/users/${id}/password`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ password: changePasswordValue })
-      });
-      if (res.ok) {
-        alert('Password updated successfully');
-        setChangePasswordId(null);
-        setChangePasswordValue('');
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update password');
-      }
-    } catch (err) {
-      alert('An error occurred');
-    } finally {
-      setChangingPassword(false);
+      alert('An error occurred while deleting user');
     }
   };
 
@@ -151,27 +94,15 @@ export default function UserSettings() {
         <div className="p-6">
           <form onSubmit={handleCreateUser} className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              <label htmlFor="newUsername" className="sr-only">Username</label>
+              <label htmlFor="newEmail" className="sr-only">Email</label>
               <input
-                id="newUsername"
-                type="text"
+                id="newEmail"
+                type="email"
                 required
-                placeholder="Username"
-                value={newUsername}
-                onChange={(e) => setNewUsername(e.target.value)}
-                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-            <div className="flex-1">
-              <label htmlFor="newPassword" className="sr-only">Password</label>
-              <input
-                id="newPassword"
-                type="password"
-                required
-                placeholder="Password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="Email Address"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border"
               />
             </div>
             <button
@@ -198,54 +129,16 @@ export default function UserSettings() {
             <li key={user.id} className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{user.username}</p>
-                  <p className="text-sm text-gray-500">Created: {new Date(user.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm font-medium text-gray-900">{user.email}</p>
+                  <p className="text-sm text-gray-500">Role: {user.role}</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  {changePasswordId === user.id ? (
-                    <form onSubmit={(e) => handleChangePassword(e, user.id)} className="flex items-center gap-2">
-                      <input
-                        type="password"
-                        required
-                        placeholder="New Password"
-                        value={changePasswordValue}
-                        onChange={(e) => setChangePasswordValue(e.target.value)}
-                        className="block w-32 sm:w-48 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      />
-                      <button
-                        type="submit"
-                        disabled={changingPassword}
-                        className="text-sm text-indigo-600 hover:text-indigo-900 font-medium"
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setChangePasswordId(null);
-                          setChangePasswordValue('');
-                        }}
-                        className="text-sm text-gray-500 hover:text-gray-700"
-                      >
-                        Cancel
-                      </button>
-                    </form>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => setChangePasswordId(user.id)}
-                        className="text-sm text-indigo-600 hover:text-indigo-900 font-medium"
-                      >
-                        Change Password
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user.id)}
-                        className="text-sm text-red-600 hover:text-red-900 font-medium flex items-center"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </>
-                  )}
+                  <button
+                    onClick={() => handleDeleteUser(user.id)}
+                    className="text-sm text-red-600 hover:text-red-900 font-medium flex items-center"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             </li>

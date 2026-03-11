@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: config
+    // Document ID: 'default'
+    // Fields:
+    //   - event_name: string (required)
+    //   - event_date: string (required)
+    //   - require_phone: boolean (required)
+    //   - require_company: boolean (required)
+    //   - logo_url: string (optional)
+    //
+    // Collection: registrations
+    // Document ID: auto-generated
+    // Fields:
+    //   - barcode_id: string (required, length 8)
+    //   - name: string (required, length > 0)
+    //   - department: string (required, length > 0)
+    //   - phone: string (optional)
+    //   - company: string (optional)
+    //   - checked_in: boolean (required)
+    //   - created_at: timestamp (required)
+    //
+    // Collection: users
+    // Document ID: user email
+    // Fields:
+    //   - email: string (required)
+    //   - role: string (required, 'admin')
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin') ||
+        (request.auth.token.email == "Adrianazwal47@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    function hasRequiredFields(requiredFields) {
+      return request.resource.data.keys().hasAll(requiredFields);
+    }
+
+    function isValidConfig() {
+      return hasOnlyAllowedFields(['event_name', 'event_date', 'require_phone', 'require_company', 'logo_url']) &&
+             hasRequiredFields(['event_name', 'event_date', 'require_phone', 'require_company']) &&
+             request.resource.data.event_name is string && request.resource.data.event_name.size() > 0 && request.resource.data.event_name.size() < 100 &&
+             request.resource.data.event_date is string && request.resource.data.event_date.size() > 0 && request.resource.data.event_date.size() < 50 &&
+             request.resource.data.require_phone is bool &&
+             request.resource.data.require_company is bool &&
+             (!('logo_url' in request.resource.data) || (request.resource.data.logo_url is string && request.resource.data.logo_url.size() < 2000));
+    }
+
+    function isValidRegistration() {
+      return hasOnlyAllowedFields(['barcode_id', 'name', 'department', 'phone', 'company', 'checked_in', 'created_at']) &&
+             hasRequiredFields(['barcode_id', 'name', 'department', 'checked_in', 'created_at']) &&
+             request.resource.data.barcode_id is string && request.resource.data.barcode_id.size() > 0 && request.resource.data.barcode_id.size() < 50 &&
+             request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100 &&
+             request.resource.data.department is string && request.resource.data.department.size() > 0 && request.resource.data.department.size() < 100 &&
+             (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() < 50)) &&
+             (!('company' in request.resource.data) || (request.resource.data.company is string && request.resource.data.company.size() < 100)) &&
+             request.resource.data.checked_in is bool &&
+             request.resource.data.created_at is timestamp;
+    }
+
+    function isValidUser() {
+      return hasOnlyAllowedFields(['email', 'role']) &&
+             hasRequiredFields(['email', 'role']) &&
+             request.resource.data.email is string && request.resource.data.email.size() > 0 && request.resource.data.email.size() < 100 &&
+             request.resource.data.role == 'admin';
+    }
+
+    match /config/{configId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidConfig();
+      allow delete: if false;
+    }
+
+    match /registrations/{registrationId} {
+      allow read: if isAdmin();
+      allow create: if isValidRegistration();
+      allow update: if isAdmin() && isValidRegistration();
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin() && isValidUser();
+      allow delete: if isAdmin();
+    }
+  }
+}

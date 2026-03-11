@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Loader2 } from 'lucide-react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface Config {
   event_name: string;
@@ -22,23 +24,25 @@ export default function Configuration() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    fetch('/api/config', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setConfig({
-          ...data,
-          require_phone: Boolean(data.require_phone),
-          require_company: Boolean(data.require_company),
-        });
-        setLoading(false);
-      })
-      .catch((err) => {
+    const fetchConfig = async () => {
+      try {
+        const docRef = doc(db, 'config', 'default');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data() as Config;
+          setConfig({
+            ...data,
+            require_phone: Boolean(data.require_phone),
+            require_company: Boolean(data.require_company),
+          });
+        }
+      } catch (err) {
         console.error(err);
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+    fetchConfig();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,20 +50,9 @@ export default function Configuration() {
     setSaving(true);
     setMessage(null);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/config', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(config),
-      });
-      if (res.ok) {
-        setMessage({ type: 'success', text: 'Configuration saved successfully.' });
-      } else {
-        setMessage({ type: 'error', text: 'Failed to save configuration.' });
-      }
+      const docRef = doc(db, 'config', 'default');
+      await setDoc(docRef, config);
+      setMessage({ type: 'success', text: 'Configuration saved successfully.' });
     } catch (error) {
       setMessage({ type: 'error', text: 'An error occurred while saving.' });
     } finally {

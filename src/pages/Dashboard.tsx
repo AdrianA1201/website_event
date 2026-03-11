@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { Users, CheckCircle, Clock, Search, RefreshCw } from 'lucide-react';
+import { collection, getDocs, query, where, updateDoc, doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface Stats {
   total: number;
@@ -9,14 +11,14 @@ interface Stats {
 }
 
 interface Registration {
-  id: number;
+  id: string;
   barcode_id: string;
   name: string;
   department: string;
   phone: string | null;
   company: string | null;
-  checked_in: number;
-  created_at: string;
+  checked_in: boolean;
+  created_at: any;
 }
 
 export default function Dashboard() {
@@ -39,47 +41,49 @@ export default function Dashboard() {
     }
   }, [scannerMode]);
 
-  const fetchData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const [statsRes, regsRes] = await Promise.all([
-        fetch('/api/stats', { headers }),
-        fetch('/api/registrations', { headers }),
-      ]);
-      const statsData = await statsRes.json();
-      const regsData = await regsRes.json();
-      setStats(statsData);
-      setRegistrations(regsData);
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 10000); // Poll every 10s
-    return () => clearInterval(interval);
+    const q = query(collection(db, 'registrations'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const regs: Registration[] = [];
+      let checkedInCount = 0;
+      snapshot.forEach((doc) => {
+        const data = doc.data() as Registration;
+        regs.push({ ...data, id: doc.id });
+        if (data.checked_in) {
+          checkedInCount++;
+        }
+      });
+      setRegistrations(regs);
+      setStats({
+        total: regs.length,
+        checkedIn: checkedInCount,
+        pending: regs.length - checkedInCount
+      });
+      setLoading(false);
+    }, (error) => {
+      console.error('Firestore Error: ', error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleCheckIn = async (barcodeId: string) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/checkin/${barcodeId}`, { 
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) {
-        const action = data.checked_in ? 'checked in' : 'checked out';
-        setScanResult({ success: true, message: `Successfully ${action} ${barcodeId}` });
-        fetchData();
+      const q = query(collection(db, 'registrations'), where('barcode_id', '==', barcodeId));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        setScanResult({ success: false, message: 'Barcode not found' });
       } else {
-        setScanResult({ success: false, message: data.error || 'Action failed' });
+        const docRef = querySnapshot.docs[0].ref;
+        const currentStatus = querySnapshot.docs[0].data().checked_in;
+        await updateDoc(docRef, { checked_in: !currentStatus });
+        const action = !currentStatus ? 'checked in' : 'checked out';
+        setScanResult({ success: true, message: `Successfully ${action} ${barcodeId}` });
       }
     } catch (error) {
+      console.error(error);
       setScanResult({ success: false, message: 'Action failed due to network error' });
     }
     setTimeout(() => setScanResult(null), 5000);
@@ -133,12 +137,6 @@ export default function Dashboard() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <button
-          onClick={fetchData}
-          className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
-        >
-          <RefreshCw className="w-5 h-5" />
-        </button>
       </div>
 
       {/* Stats Grid */}

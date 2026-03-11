@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "Config": {
+      "title": "Config",
+      "description": "Event configuration",
+      "type": "object",
+      "properties": {
+        "event_name": { "type": "string" },
+        "event_date": { "type": "string" },
+        "require_phone": { "type": "boolean" },
+        "require_company": { "type": "boolean" },
+        "logo_url": { "type": "string" }
+      },
+      "required": ["event_name", "event_date", "require_phone", "require_company"]
+    },
+    "Registration": {
+      "title": "Registration",
+      "description": "Attendee registration",
+      "type": "object",
+      "properties": {
+        "barcode_id": { "type": "string" },
+        "name": { "type": "string" },
+        "department": { "type": "string" },
+        "phone": { "type": "string" },
+        "company": { "type": "string" },
+        "checked_in": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["barcode_id", "name", "department", "checked_in"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Admin user",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin"] }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "config/{configId}": {
+      "schema": { "$ref": "#/entities/Config" },
+      "description": "Global event configuration"
+    },
+    "registrations/{registrationId}": {
+      "schema": { "$ref": "#/entities/Registration" },
+      "description": "Attendee registrations"
+    },
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Admin users"
+    }
+  }
+}

@@ -12,24 +12,25 @@ import Attendees from './pages/Attendees';
 import Login from './pages/Login';
 import UserSettings from './pages/UserSettings';
 import React, { useState, useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
+function ProtectedRoute({ children, isAuthenticated, loading }: { children: React.ReactNode, isAuthenticated: boolean, loading: boolean }) {
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      setIsAuthenticated(!!localStorage.getItem('token'));
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -39,11 +40,11 @@ export default function App() {
         <main>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/" element={<ProtectedRoute><Registration /></ProtectedRoute>} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/attendees" element={<ProtectedRoute><Attendees /></ProtectedRoute>} />
-            <Route path="/config" element={<ProtectedRoute><Configuration /></ProtectedRoute>} />
-            <Route path="/users" element={<ProtectedRoute><UserSettings /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Registration /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Dashboard /></ProtectedRoute>} />
+            <Route path="/attendees" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Attendees /></ProtectedRoute>} />
+            <Route path="/config" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Configuration /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><UserSettings /></ProtectedRoute>} />
           </Routes>
         </main>
       </div>
