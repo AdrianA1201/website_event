@@ -31,9 +31,11 @@ export default function Configuration() {
         if (docSnap.exists()) {
           const data = docSnap.data() as Config;
           setConfig({
-            ...data,
+            event_name: data.event_name || '',
+            event_date: data.event_date || '',
             require_phone: Boolean(data.require_phone),
             require_company: Boolean(data.require_company),
+            logo_url: data.logo_url || '',
           });
         }
       } catch (err) {
@@ -51,10 +53,24 @@ export default function Configuration() {
     setMessage(null);
     try {
       const docRef = doc(db, 'config', 'default');
-      await setDoc(docRef, config);
+      
+      // Clean up data before saving to prevent Firestore errors
+      const dataToSave: any = { 
+        event_name: config.event_name.trim(),
+        event_date: config.event_date,
+        require_phone: config.require_phone,
+        require_company: config.require_company
+      };
+      
+      if (config.logo_url && config.logo_url.trim() !== '') {
+        dataToSave.logo_url = config.logo_url.trim();
+      }
+
+      await setDoc(docRef, dataToSave);
       setMessage({ type: 'success', text: 'Configuration saved successfully.' });
-    } catch (error) {
-      setMessage({ type: 'error', text: 'An error occurred while saving.' });
+    } catch (error: any) {
+      console.error('Error saving config:', error);
+      setMessage({ type: 'error', text: error.message || 'An error occurred while saving.' });
     } finally {
       setSaving(false);
       setTimeout(() => setMessage(null), 3000);
