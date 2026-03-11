@@ -1,0 +1,5 @@
+{
+  "name": "EventPass",
+  "description": "Event registration system with QR code check-in and dashboard.",
+  "requestFramePermissions": ["camera"]
+}
