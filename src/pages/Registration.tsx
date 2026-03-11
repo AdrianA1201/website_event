@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import { CheckCircle2, Loader2 } from 'lucide-react';
-import { doc, getDoc, collection, addDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface Config {
@@ -54,7 +54,7 @@ export default function Registration() {
         name: formData.name,
         department: formData.department,
         checked_in: false,
-        created_at: new Date().toISOString(),
+        created_at: serverTimestamp(),
       };
       
       if (formData.phone) (registrationData as any).phone = formData.phone;

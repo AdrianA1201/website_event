@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'react-qr-code';
 import { Loader2, Download, Search, Upload, FileSpreadsheet, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { collection, onSnapshot, query, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, deleteDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface Registration {
@@ -75,7 +75,7 @@ export default function Attendees() {
           department: row.Department || row.department || row.Dept || row.dept,
           barcode_id: row['QR Code'] || row.qr_code || row.QRCode || row.qrcode || row.Barcode || row.barcode || Math.random().toString(36).substring(2, 10).toUpperCase(),
           checked_in: false,
-          created_at: new Date()
+          created_at: serverTimestamp()
         })).filter((a) => a.name && a.department);
 
         if (attendees.length === 0) {

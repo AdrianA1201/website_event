@@ -11,7 +11,7 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 
 app.use(express.json());
 
-// API routes go here if needed in the future
+// API routes go here
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
@@ -40,4 +40,3 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
 }
 
 export default app;
-
