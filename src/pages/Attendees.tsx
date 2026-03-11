@@ -21,6 +21,7 @@ export default function Attendees() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [page, setPage] = useState(1);
   const itemsPerPage = 24;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,56 +64,73 @@ export default function Attendees() {
     XLSX.writeFile(wb, 'Attendees_Template.xlsx');
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setImporting(true);
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
+    setImportMessage(null);
+    
+    try {
+      const data = await new Promise<any[]>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            resolve(XLSX.utils.sheet_to_json(ws));
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsBinaryString(file);
+      });
 
-        const attendees = data.map((row: any) => ({
-          name: row.Nama || row.nama || row.Name || row.name,
-          department: row.Department || row.department || row.Dept || row.dept,
-          barcode_id: row['QR Code'] || row.qr_code || row.QRCode || row.qrcode || row.Barcode || row.barcode || Math.random().toString(36).substring(2, 10).toUpperCase(),
-          checked_in: false,
-          created_at: serverTimestamp()
-        })).filter((a) => a.name && a.department);
+      const attendees = data.map((row: any) => ({
+        name: String(row.Nama || row.nama || row.Name || row.name || '').trim(),
+        department: String(row.Department || row.department || row.Dept || row.dept || '').trim(),
+        barcode_id: String(row['QR Code'] || row.qr_code || row.QRCode || row.qrcode || row.Barcode || row.barcode || Math.random().toString(36).substring(2, 10).toUpperCase()).trim(),
+        checked_in: false,
+        created_at: serverTimestamp()
+      })).filter((a) => a.name && a.department);
 
-        if (attendees.length === 0) {
-          alert('No valid data found in Excel file. Please ensure columns "Nama" and "Department" exist.');
-          setImporting(false);
-          return;
-        }
+      if (attendees.length === 0) {
+        setImportMessage({ type: 'error', text: 'No valid data found. Ensure columns "Nama" and "Department" exist.' });
+        setImporting(false);
+        return;
+      }
 
-        // Batch write to Firestore
+      // Chunk into batches of 400 to stay well under Firestore's 500 limit
+      const chunks = [];
+      for (let i = 0; i < attendees.length; i += 400) {
+        chunks.push(attendees.slice(i, i + 400));
+      }
+
+      const registrationsRef = collection(db, 'registrations');
+      
+      for (const chunk of chunks) {
         const batch = writeBatch(db);
-        const registrationsRef = collection(db, 'registrations');
-        
-        attendees.forEach((attendee) => {
+        chunk.forEach((attendee) => {
           const newDocRef = doc(registrationsRef);
           batch.set(newDocRef, attendee);
         });
-
         await batch.commit();
-        alert(`Successfully imported ${attendees.length} attendees.`);
-      } catch (error) {
-        console.error('Error parsing Excel file:', error);
-        alert('Failed to parse Excel file.');
-      } finally {
-        setImporting(false);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
       }
-    };
-    reader.readAsBinaryString(file);
+
+      setImportMessage({ type: 'success', text: `Successfully imported ${attendees.length} attendees.` });
+    } catch (error: any) {
+      console.error('Error importing:', error);
+      setImportMessage({ type: 'error', text: error.message || 'Failed to import attendees.' });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      setTimeout(() => setImportMessage(null), 5000);
+    }
   };
 
   const downloadQRCode = (id: string, name: string) => {
@@ -218,6 +236,14 @@ export default function Attendees() {
           </div>
         </div>
       </div>
+
+      {importMessage && (
+        <div className={`mb-6 p-4 rounded-md ${
+          importMessage.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
+        }`}>
+          {importMessage.text}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {displayedRegistrations.map((reg) => (
