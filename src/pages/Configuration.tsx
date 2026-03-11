@@ -66,7 +66,12 @@ export default function Configuration() {
         dataToSave.logo_url = config.logo_url.trim();
       }
 
-      await setDoc(docRef, dataToSave);
+      // Add a timeout so it doesn't hang forever if the network drops
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Network timeout: The server took too long to respond. Please check your connection.")), 10000)
+      );
+
+      await Promise.race([setDoc(docRef, dataToSave), timeoutPromise]);
       setMessage({ type: 'success', text: 'Configuration saved successfully.' });
     } catch (error: any) {
       console.error('Error saving config:', error);

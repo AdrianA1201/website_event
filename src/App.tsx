@@ -13,8 +13,7 @@ import Login from './pages/Login';
 import UserSettings from './pages/UserSettings';
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, onSnapshot, query, doc } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { auth } from './firebase';
 
 function ProtectedRoute({ children, isAuthenticated, loading }: { children: React.ReactNode, isAuthenticated: boolean, loading: boolean }) {
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -33,21 +32,6 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
-
-  // Global listeners to keep data in memory cache across tab switches
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const unsubRegs = onSnapshot(query(collection(db, 'registrations')), () => {});
-    const unsubConfig = onSnapshot(doc(db, 'config', 'default'), () => {});
-    const unsubUsers = onSnapshot(query(collection(db, 'users')), () => {});
-
-    return () => {
-      unsubRegs();
-      unsubConfig();
-      unsubUsers();
-    };
-  }, [isAuthenticated]);
 
   return (
     <Router>

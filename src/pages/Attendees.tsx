@@ -117,7 +117,12 @@ export default function Attendees() {
           const newDocRef = doc(registrationsRef);
           batch.set(newDocRef, attendee);
         });
-        await batch.commit();
+        
+        // Add timeout to prevent infinite hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Network timeout during import. Please check your connection.")), 15000)
+        );
+        await Promise.race([batch.commit(), timeoutPromise]);
       }
 
       setImportMessage({ type: 'success', text: `Successfully imported ${attendees.length} attendees.` });
