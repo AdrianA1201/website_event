@@ -73,25 +73,24 @@ if (userExists.count === 0) {
   db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run('admin', hash);
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
-  app.use(express.json());
+app.use(express.json());
 
-  // Auth Middleware
-  const authenticateToken = (req: any, res: any, next: any) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+// Auth Middleware
+const authenticateToken = (req: any, res: any, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
 
-    if (token == null) return res.status(401).json({ error: 'Unauthorized' });
+  if (token == null) return res.status(401).json({ error: 'Unauthorized' });
 
-    jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-      if (err) return res.status(403).json({ error: 'Forbidden' });
-      req.user = user;
-      next();
-    });
-  };
+  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    if (err) return res.status(403).json({ error: 'Forbidden' });
+    req.user = user;
+    next();
+  });
+};
 
   // Auth Routes
   app.post('/api/auth/login', (req, res) => {
@@ -292,23 +291,27 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
+// Vite middleware for development
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  createViteServer({
+    server: { middlewareMode: true },
+    appType: 'spa',
+  }).then(vite => {
     app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  });
+} else {
+  app.use(express.static(path.join(__dirname, 'dist')));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
-startServer();
+export default app;
