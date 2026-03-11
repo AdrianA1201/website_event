@@ -21,6 +21,8 @@ export default function Attendees() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [importing, setImporting] = useState(false);
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 24;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -45,6 +47,11 @@ export default function Attendees() {
 
     return () => unsubscribe();
   }, []);
+
+  // Reset page when search query changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
@@ -148,6 +155,8 @@ export default function Attendees() {
     reg.barcode_id.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const displayedRegistrations = filteredRegistrations.slice(0, page * itemsPerPage);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -211,7 +220,7 @@ export default function Attendees() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredRegistrations.map((reg) => (
+        {displayedRegistrations.map((reg) => (
           <div key={reg.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative group">
             <button
               onClick={() => handleDelete(reg.id)}
@@ -245,6 +254,17 @@ export default function Attendees() {
           </div>
         )}
       </div>
+
+      {filteredRegistrations.length > displayedRegistrations.length && (
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Load More
+          </button>
+        </div>
+      )}
     </div>
   );
 }
