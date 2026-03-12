@@ -95,7 +95,19 @@ export default function Dashboard() {
       if (!scannerRef.current) {
         scannerRef.current = new Html5QrcodeScanner(
           'reader',
-          { fps: 10, qrbox: { width: 250, height: 250 } },
+          { 
+            fps: 10, 
+            qrbox: (viewfinderWidth, viewfinderHeight) => {
+              const minEdgePercentage = 0.7; // 70% of the smallest edge
+              const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+              const qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
+              return {
+                width: qrboxSize,
+                height: qrboxSize
+              };
+            },
+            aspectRatio: 1.0
+          },
           false
         );
         scannerRef.current.render(
