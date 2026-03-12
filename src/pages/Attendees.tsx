@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import QRCode from 'react-qr-code';
+import Barcode from 'react-barcode';
 import { Loader2, Download, Search, Upload, FileSpreadsheet, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { collection, onSnapshot, query, deleteDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -56,8 +56,8 @@ export default function Attendees() {
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { Nama: 'John Doe', Department: 'Engineering', 'QR Code': 'JD123456' },
-      { Nama: 'Jane Smith', Department: 'Marketing', 'QR Code': '' }
+      { Nama: 'John Doe', Department: 'Engineering', 'Barcode': 'JD123456' },
+      { Nama: 'Jane Smith', Department: 'Marketing', 'Barcode': '' }
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
@@ -92,7 +92,7 @@ export default function Attendees() {
       const attendees = data.map((row: any) => ({
         name: String(row.Nama || row.nama || row.Name || row.name || '').trim(),
         department: String(row.Department || row.department || row.Dept || row.dept || '').trim(),
-        barcode_id: String(row['QR Code'] || row.qr_code || row.QRCode || row.qrcode || row.Barcode || row.barcode || Math.random().toString(36).substring(2, 10).toUpperCase()).trim(),
+        barcode_id: String(row.Barcode || row.barcode || row['QR Code'] || row.qr_code || row.QRCode || row.qrcode || Math.random().toString(36).substring(2, 10).toUpperCase()).trim(),
         checked_in: false,
         created_at: serverTimestamp()
       })).filter((a) => a.name && a.department);
@@ -138,8 +138,9 @@ export default function Attendees() {
     }
   };
 
-  const downloadQRCode = (id: string, name: string) => {
-    const svg = document.getElementById(`qr-${id}`);
+  const downloadBarcode = (id: string, name: string) => {
+    const container = document.getElementById(`barcode-container-${id}`);
+    const svg = container?.querySelector('svg');
     if (!svg) return;
     const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement('canvas');
@@ -156,7 +157,7 @@ export default function Attendees() {
       }
       const pngFile = canvas.toDataURL('image/png');
       const downloadLink = document.createElement('a');
-      downloadLink.download = `QR-${name.replace(/\s+/g, '-')}-${id}.png`;
+      downloadLink.download = `Barcode-${name.replace(/\s+/g, '-')}-${id}.png`;
       downloadLink.href = `${pngFile}`;
       downloadLink.click();
     };
@@ -192,9 +193,9 @@ export default function Attendees() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Attendees QR Codes</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Attendees Barcodes</h1>
           <p className="mt-1 text-sm text-gray-500">
-            View and download QR codes for all registered attendees.
+            View and download barcodes for all registered attendees.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
@@ -261,8 +262,8 @@ export default function Attendees() {
               <Trash2 className="w-4 h-4" />
             </button>
             <div className="p-6 flex-grow flex flex-col items-center justify-center border-b border-gray-100 bg-gray-50">
-              <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 mb-4">
-                <QRCode id={`qr-${reg.barcode_id}`} value={reg.barcode_id} size={150} />
+              <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 mb-4 w-full overflow-hidden flex justify-center" id={`barcode-container-${reg.barcode_id}`}>
+                <Barcode value={reg.barcode_id} width={1.5} height={60} displayValue={false} />
               </div>
               <p className="text-xs text-gray-500 font-mono tracking-widest">{reg.barcode_id}</p>
             </div>
@@ -270,11 +271,11 @@ export default function Attendees() {
               <h3 className="text-lg font-semibold text-gray-900 truncate" title={reg.name}>{reg.name}</h3>
               <p className="text-sm text-gray-500 truncate" title={reg.department}>{reg.department}</p>
               <button
-                onClick={() => downloadQRCode(reg.barcode_id, reg.name)}
+                onClick={() => downloadBarcode(reg.barcode_id, reg.name)}
                 className="mt-4 w-full inline-flex justify-center items-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 <Download className="w-4 h-4 mr-2" />
-                Download QR
+                Download Barcode
               </button>
             </div>
           </div>

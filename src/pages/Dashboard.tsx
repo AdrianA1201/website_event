@@ -188,7 +188,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">QR Scanner</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Barcode Scanner</h2>
                 <p className="text-sm text-gray-500 mt-1">Scan tickets to check in attendees</p>
               </div>
               <div className="flex bg-gray-200 p-1 rounded-lg">

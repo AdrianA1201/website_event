@@ -23,6 +23,7 @@
     "lucide-react": "^0.577.0",
     "motion": "^12.35.2",
     "react": "^19.2.4",
+    "react-barcode": "^1.6.1",
     "react-dom": "^19.2.4",
     "react-qr-code": "^2.0.18",
     "react-router-dom": "^7.13.1",

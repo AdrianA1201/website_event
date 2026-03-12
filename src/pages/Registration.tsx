@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import QRCode from 'react-qr-code';
+import Barcode from 'react-barcode';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -92,12 +92,12 @@ export default function Registration() {
           <CheckCircle2 className="w-16 h-16 mx-auto mb-4 text-green-400" />
           <h2 className="text-2xl font-bold">Registration Successful!</h2>
           <p className="mt-2 text-indigo-100">
-            Please present this QR code at the entrance.
+            Please present this barcode at the entrance.
           </p>
         </div>
         <div className="p-8 flex flex-col items-center">
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <QRCode value={barcodeId} size={200} />
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 w-full overflow-hidden flex justify-center">
+            <Barcode value={barcodeId} width={2} height={100} displayValue={false} />
           </div>
           <p className="mt-6 text-sm text-gray-500 font-mono tracking-widest">
             ID: {barcodeId}

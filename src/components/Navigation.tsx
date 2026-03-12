@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { QrCode, LayoutDashboard, Settings, Users, UserCog, LogOut, Menu, X } from 'lucide-react';
+import { Barcode, LayoutDashboard, Settings, Users, UserCog, LogOut, Menu, X } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useState } from 'react';
@@ -10,7 +10,7 @@ export default function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const links = [
-    { to: '/', label: 'Register', icon: QrCode },
+    { to: '/', label: 'Register', icon: Barcode },
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/attendees', label: 'Attendees', icon: Users },
     { to: '/config', label: 'Settings', icon: Settings },
