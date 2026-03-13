@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Barcode from 'react-barcode';
+import JsBarcode from 'jsbarcode';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import { Loader2, Download, Search, Upload, FileSpreadsheet, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { collection, onSnapshot, query, deleteDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
@@ -23,6 +26,7 @@ export default function Attendees() {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const itemsPerPage = 24;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -139,29 +143,20 @@ export default function Attendees() {
   };
 
   const downloadBarcode = (id: string, name: string) => {
-    const container = document.getElementById(`barcode-container-${id}`);
-    const svg = container?.querySelector('svg');
-    if (!svg) return;
-    const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      if (ctx) {
-        // Fill white background
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-      }
-      const pngFile = canvas.toDataURL('image/png');
-      const downloadLink = document.createElement('a');
-      downloadLink.download = `Barcode-${name.replace(/\s+/g, '-')}-${id}.png`;
-      downloadLink.href = `${pngFile}`;
-      downloadLink.click();
-    };
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    JsBarcode(canvas, id, {
+      width: 1.5,
+      height: 60,
+      displayValue: false,
+      background: "#ffffff",
+      lineColor: "#000000",
+      margin: 10
+    });
+    const pngFile = canvas.toDataURL('image/png');
+    const downloadLink = document.createElement('a');
+    downloadLink.download = `Barcode-${name.replace(/\s+/g, '-')}-${id}.png`;
+    downloadLink.href = `${pngFile}`;
+    downloadLink.click();
   };
 
   const handleDelete = async (id: string) => {
@@ -178,6 +173,85 @@ export default function Attendees() {
     reg.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
     reg.barcode_id.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const toggleSelection = (id: string) => {
+    const newSelection = new Set(selectedIds);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedIds(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredRegistrations.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredRegistrations.map(r => r.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} attendees?`)) return;
+    
+    setLoading(true);
+    try {
+      const batch = writeBatch(db);
+      let count = 0;
+      for (const id of selectedIds) {
+        batch.delete(doc(db, 'registrations', id));
+        count++;
+        if (count % 400 === 0) {
+          await batch.commit();
+        }
+      }
+      if (count % 400 !== 0) {
+        await batch.commit();
+      }
+      setSelectedIds(new Set());
+    } catch (err) {
+      alert('An error occurred while deleting attendees');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedIds.size === 0) return;
+    
+    setLoading(true);
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder("barcodes");
+      if (!folder) return;
+
+      const selectedRegs = registrations.filter(r => selectedIds.has(r.id));
+      
+      for (const reg of selectedRegs) {
+        const canvas = document.createElement('canvas');
+        JsBarcode(canvas, reg.barcode_id, {
+          width: 1.5,
+          height: 60,
+          displayValue: false,
+          background: "#ffffff",
+          lineColor: "#000000",
+          margin: 10
+        });
+        
+        const base64Data = canvas.toDataURL('image/png').replace(/^data:image\/(png|jpg);base64,/, "");
+        folder.file(`Barcode-${reg.name.replace(/\s+/g, '-')}-${reg.barcode_id}.png`, base64Data, {base64: true});
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, "barcodes.zip");
+    } catch (err) {
+      console.error("Error generating zip:", err);
+      alert("Failed to generate zip file.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const displayedRegistrations = filteredRegistrations.slice(0, page * itemsPerPage);
 
@@ -251,17 +325,64 @@ export default function Attendees() {
         </div>
       )}
 
+      {filteredRegistrations.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectedIds.size > 0 && selectedIds.size === filteredRegistrations.length}
+              ref={input => {
+                if (input) {
+                  input.indeterminate = selectedIds.size > 0 && selectedIds.size < filteredRegistrations.length;
+                }
+              }}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+            />
+            <span className="text-sm font-medium text-gray-700">Select All ({filteredRegistrations.length})</span>
+          </label>
+          
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2 sm:ml-auto">
+              <span className="text-sm text-gray-500 mr-2">{selectedIds.size} selected</span>
+              <button
+                onClick={handleBulkDownload}
+                className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Download Selected
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                Delete Selected
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {displayedRegistrations.map((reg) => (
-          <div key={reg.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative group">
+          <div key={reg.id} className={`bg-white rounded-xl shadow-sm border overflow-hidden flex flex-col relative group transition-colors ${selectedIds.has(reg.id) ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200'}`}>
+            <div className="absolute top-3 left-3 z-10">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(reg.id)}
+                onChange={() => toggleSelection(reg.id)}
+                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+              />
+            </div>
             <button
               onClick={() => handleDelete(reg.id)}
-              className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+              className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100 z-10"
               title="Delete Attendee"
             >
               <Trash2 className="w-4 h-4" />
             </button>
-            <div className="p-6 flex-grow flex flex-col items-center justify-center border-b border-gray-100 bg-gray-50">
+            <div className="p-6 flex-grow flex flex-col items-center justify-center border-b border-gray-100 bg-gray-50 pt-10">
               <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 mb-4 w-full overflow-hidden flex justify-center" id={`barcode-container-${reg.barcode_id}`}>
                 <Barcode value={reg.barcode_id} width={1.5} height={60} displayValue={false} />
               </div>
