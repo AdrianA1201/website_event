@@ -245,11 +245,12 @@ export default function Attendees() {
             templateConfig.barcodeHeight
           );
           if (templateConfig.showName) {
+            const displayValue = name.split(' ').slice(0, 3).join(' ');
             ctx.font = `${templateConfig.nameFontStyle || 'normal'} ${templateConfig.nameFontWeight || 'bold'} ${templateConfig.nameFontSize}px ${templateConfig.nameFontFamily || 'sans-serif'}`;
             ctx.fillStyle = templateConfig.nameColor;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
-            ctx.fillText(name, templateConfig.nameX, templateConfig.nameY);
+            ctx.fillText(displayValue, templateConfig.nameX, templateConfig.nameY);
           }
         }
         resolve(finalCanvas.toDataURL('image/png'));
@@ -644,7 +645,12 @@ export default function Attendees() {
                     <p className="absolute top-2 left-2 text-xs text-gray-500 z-10 bg-white/80 px-2 py-1 rounded">Drag elements to position</p>
                     <div 
                       className="relative" 
-                      style={{ maxWidth: '100%', overflow: 'auto' }}
+                      style={{ 
+                        maxWidth: '100%', 
+                        overflow: 'auto',
+                        backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
+                        backgroundSize: '20px 20px'
+                      }}
                       onMouseMove={handleMouseMove}
                       onMouseUp={handleMouseUp}
                       onMouseLeave={handleMouseUp}
