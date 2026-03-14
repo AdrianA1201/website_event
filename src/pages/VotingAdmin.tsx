@@ -20,7 +20,6 @@ interface Vote {
 export default function VotingAdmin() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [votes, setVotes] = useState<Vote[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
   
   const [newTeamName, setNewTeamName] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -61,19 +60,10 @@ export default function VotingAdmin() {
       setVotes(v);
     }, (err) => console.error("Votes error:", err));
 
-    const unsubConfig = onSnapshot(doc(db, 'config', 'voting'), (docSnap) => {
-      if (docSnap.exists()) {
-        setCategories(docSnap.data().categories || []);
-      } else {
-        setCategories([]);
-      }
-    }, (err) => console.error("Config error:", err));
-
     return () => {
       clearTimeout(timer);
       unsubTeams();
       unsubVotes();
-      unsubConfig();
     };
   }, []);
 
@@ -125,25 +115,6 @@ export default function VotingAdmin() {
     }
   };
 
-  const handleAddCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCategoryName.trim()) return;
-    if (categories.includes(newCategoryName.trim())) {
-      alert('Category already exists');
-      return;
-    }
-
-    try {
-      const newCategories = [...categories, newCategoryName.trim()];
-      // Ensure document exists by using setDoc with merge
-      await setDoc(doc(db, 'config', 'voting'), { categories: newCategories }, { merge: true });
-      setNewCategoryName('');
-    } catch (err) {
-      console.error('Error adding category:', err);
-      alert('Failed to add category. Please check your permissions.');
-    }
-  };
-
   const getVotingLink = (teamIds: string[]) => {
     const baseUrl = window.location.origin;
     if (teamIds.length === 0) return `${baseUrl}/vote`;
@@ -154,16 +125,6 @@ export default function VotingAdmin() {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleDeleteCategory = async (catToDelete: string) => {
-    if (!window.confirm(`Are you sure you want to delete the category "${catToDelete}"?`)) return;
-    try {
-      const newCategories = categories.filter(c => c !== catToDelete);
-      await setDoc(doc(db, 'config', 'voting'), { categories: newCategories }, { merge: true });
-    } catch (err) {
-      console.error('Error deleting category:', err);
-    }
   };
 
   const getTeamScore = (teamId: string) => {
@@ -187,7 +148,7 @@ export default function VotingAdmin() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Sidebar: Add Team & Categories */}
+        {/* Sidebar: Add Team */}
         <div className="lg:col-span-1 space-y-6">
           {/* Add Team Form */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -216,59 +177,10 @@ export default function VotingAdmin() {
               </button>
             </form>
           </div>
-
-          {/* Manage Categories */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-              <Settings className="w-5 h-5 mr-2 text-indigo-500" />
-              Scoring Categories
-            </h2>
-            <form onSubmit={handleAddCategory} className="space-y-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">New Category</label>
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
-                  placeholder="e.g. Presentation"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Category
-              </button>
-            </form>
-
-            <div className="space-y-2">
-              {categories.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-2">No categories added.</p>
-              ) : (
-                categories.map(cat => (
-                  <div key={cat} className="flex items-center justify-between p-2 bg-gray-50 rounded-md border border-gray-100">
-                    <span className="text-sm font-medium text-gray-700 flex items-center">
-                      <Star className="w-4 h-4 mr-2 text-yellow-500" />
-                      {cat}
-                    </span>
-                    <button
-                      onClick={() => handleDeleteCategory(cat)}
-                      className="text-gray-400 hover:text-red-600"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Dashboard & Teams List */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-lg font-medium text-gray-900 flex items-center">
@@ -442,16 +354,10 @@ export default function VotingAdmin() {
                     <p className="text-sm font-medium text-gray-700">Scoring Preview:</p>
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-xs space-y-1">
                       <p className="font-bold text-indigo-600 mb-1">Voting for {selectedTeamsForLink.length} team(s)</p>
-                      {categories.length > 0 ? (
-                        categories.map(cat => (
-                          <div key={cat} className="flex justify-between">
-                            <span className="text-gray-600">{cat}</span>
-                            <span className="text-gray-400">0-100 pts</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-gray-400 italic">No scoring categories defined.</p>
-                      )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Score</span>
+                        <span className="text-gray-400">0-100 pts</span>
+                      </div>
                     </div>
                   </div>
 

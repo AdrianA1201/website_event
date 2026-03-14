@@ -1,91 +1,35 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: config
-    // Document ID: 'default'
-    // Fields:
-    //   - event_name: string (required)
-    //   - event_date: string (required)
-    //   - require_phone: boolean (required)
-    //   - require_company: boolean (required)
-    //   - logo_url: string (optional)
-    // Document ID: 'voting'
-    // Fields:
-    //   - categories: list of strings
-    //
-    // Collection: teams
-    // Document ID: auto-generated
-    // Fields:
-    //   - name: string
-    //   - manual_points: number
-    //   - created_at: timestamp
-    //
-    // Collection: votes
-    // Document ID: auto-generated
-    // Fields:
-    //   - team_id: string
-    //   - voter_name: string
-    //   - scores: map
-    //   - total_score: number
-    //   - created_at: timestamp
-    //
-    // Collection: registrations
-    // Document ID: auto-generated
-    // Fields:
-    //   - barcode_id: string (required, length 8)
-    //   - name: string (required, length > 0)
-    //   - department: string (required, length > 0)
-    //   - phone: string (optional)
-    //   - company: string (optional)
-    //   - checked_in: boolean (required)
-    //   - created_at: timestamp (required)
-    //
-    // Collection: users
-    // Document ID: user email
-    // Fields:
-    //   - email: string (required)
-    //   - role: string (required, 'admin')
-    //
-    // ===============================================================
-
-    // Helper Functions
+    
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return isAuthenticated() && (
-        request.auth.uid == "WIDoZopjAycoQXLQcP6GOLQH0DH2" ||
-        request.auth.token.email.lower() == "adrianazwal47@gmail.com"
-      );
+    function isSuperAdmin() {
+      return isAuthenticated() && request.auth.uid == "WIDoZopjAycoQXLQcP6GOLQH0DH2";
     }
 
-    match /config/{document=**} {
+    // Allow everything for the super admin
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    // Public rules for others
+    match /config/{configId} {
       allow read: if true;
-      allow write: if isAdmin();
     }
 
-    match /teams/{document=**} {
+    match /teams/{teamId} {
       allow read: if true;
-      allow write: if isAdmin();
     }
 
-    match /votes/{document=**} {
+    match /votes/{voteId} {
       allow read, list, create: if true;
-      allow update, delete: if isAdmin();
     }
 
-    match /registrations/{document=**} {
-      allow read, write: if isAdmin();
+    match /registrations/{regId} {
       allow create: if true;
-    }
-
-    match /users/{document=**} {
-      allow read, write: if isAdmin();
     }
   }
 }

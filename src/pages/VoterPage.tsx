@@ -15,11 +15,10 @@ export default function VoterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [teams, setTeams] = useState<Team[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
   
   const [voterName, setVoterName] = useState('');
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(searchParams.get('teamIds')?.split(',') || []);
-  const [scores, setScores] = useState<Record<string, Record<string, number>>>({});
+  const [scores, setScores] = useState<Record<string, number>>({});
   const [isLocked, setIsLocked] = useState(!!searchParams.get('teamIds'));
 
   useEffect(() => {
@@ -32,40 +31,12 @@ export default function VoterPage() {
       setTeams(t);
     });
 
-    const unsubConfig = onSnapshot(doc(db, 'config', 'voting'), (docSnap) => {
-      if (docSnap.exists()) {
-        const cats = docSnap.data().categories || [];
-        setCategories(cats);
-        
-        // Initialize scores for all teams if not already set
-        setScores(prev => {
-          const newScores = { ...prev };
-          const teamsToInit = isLocked ? selectedTeamIds : teams.map(t => t.id);
-          
-          teamsToInit.forEach(teamId => {
-            if (!newScores[teamId]) {
-              newScores[teamId] = {};
-            }
-            cats.forEach((cat: string) => {
-              if (newScores[teamId][cat] === undefined) {
-                newScores[teamId][cat] = 0;
-              }
-            });
-          });
-          return newScores;
-        });
-      } else {
-        setCategories([]);
-      }
-    });
-
     return () => {
       unsubTeams();
-      unsubConfig();
     };
   }, [isLocked, selectedTeamIds.join(','), teams.length]);
 
-  const handleScoreChange = (teamId: string, category: string, value: string) => {
+  const handleScoreChange = (teamId: string, value: string) => {
     let num = parseInt(value, 10);
     if (isNaN(num)) num = 0;
     if (num < 0) num = 0;
@@ -73,10 +44,7 @@ export default function VoterPage() {
     
     setScores(prev => ({
       ...prev,
-      [teamId]: {
-        ...(prev[teamId] || {}),
-        [category]: num
-      }
+      [teamId]: num
     }));
   };
 
@@ -90,10 +58,6 @@ export default function VoterPage() {
       setError('Please select at least one team to vote for.');
       return;
     }
-    if (categories.length === 0) {
-      setError('Voting is not yet configured. Please contact the administrator.');
-      return;
-    }
 
     setLoading(true);
     setError('');
@@ -101,13 +65,11 @@ export default function VoterPage() {
     try {
       // Submit a vote for each selected team
       const votePromises = selectedTeamIds.map(teamId => {
-        const teamScores = scores[teamId] || {};
-        const totalScore = Object.values(teamScores).reduce((sum: number, score: number) => sum + score, 0);
+        const totalScore = scores[teamId] || 0;
         
         return addDoc(collection(db, 'votes'), {
           team_id: teamId,
           voter_name: voterName.trim(),
-          scores: teamScores,
           total_score: totalScore,
           created_at: serverTimestamp()
         });
@@ -227,59 +189,41 @@ export default function VoterPage() {
               </div>
             </div>
 
-            {/* Scoring Categories for each team */}
+            {/* Scoring for each team */}
             {selectedTeamIds.length > 0 && (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {categories.length > 0 ? (
-                  selectedTeamIds.map(teamId => {
-                    const team = teams.find(t => t.id === teamId);
-                    if (!team) return null;
-                    const teamScores = scores[teamId] || {};
-                    const totalScore = Object.values(teamScores).reduce((sum: number, score: number) => sum + score, 0);
+                {selectedTeamIds.map(teamId => {
+                  const team = teams.find(t => t.id === teamId);
+                  if (!team) return null;
+                  const teamScore = scores[teamId] || 0;
 
-                    return (
-                      <div key={teamId} className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4">
-                        <h3 className="text-xl font-bold text-indigo-900 flex items-center gap-2">
-                          <Users className="w-5 h-5" />
-                          {team.name}
-                        </h3>
-                        <div className="space-y-4">
-                          {categories.map((category) => (
-                            <div key={category} className="flex items-center justify-between gap-4">
-                              <div className="flex items-center gap-2 flex-1">
-                                <Star className="w-5 h-5 text-yellow-500" />
-                                <span className="font-medium text-gray-700">{category}</span>
-                              </div>
-                              <div className="w-32">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={teamScores[category] === 0 ? '' : teamScores[category]}
-                                  onChange={(e) => handleScoreChange(teamId, category, e.target.value)}
-                                  className="block w-full text-center text-xl font-bold p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                                  placeholder="0"
-                                  required
-                                />
-                              </div>
-                            </div>
-                          ))}
+                  return (
+                    <div key={teamId} className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4">
+                      <h3 className="text-xl font-bold text-indigo-900 flex items-center gap-2">
+                        <Users className="w-5 h-5" />
+                        {team.name}
+                      </h3>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 flex-1">
+                          <Star className="w-5 h-5 text-yellow-500" />
+                          <span className="font-medium text-gray-700">Score (0-100)</span>
                         </div>
-                        <div className="pt-4 mt-4 border-t border-gray-200 flex justify-between items-center">
-                          <span className="font-bold text-gray-900">Team Total:</span>
-                          <span className="text-2xl font-bold text-indigo-600">
-                            {totalScore}
-                          </span>
+                        <div className="w-32">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={teamScore === 0 ? '' : teamScore}
+                            onChange={(e) => handleScoreChange(teamId, e.target.value)}
+                            className="block w-full text-center text-xl font-bold p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="0"
+                            required
+                          />
                         </div>
                       </div>
-                    );
-                  })
-                ) : (
-                  <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-center">
-                    <p className="font-medium">No scoring categories have been set up yet.</p>
-                    <p className="text-sm mt-1">Please wait for the administrator to configure the criteria.</p>
-                  </div>
-                )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
