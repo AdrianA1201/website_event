@@ -87,6 +87,18 @@ service cloud.firestore {
       return request.resource.data.categories is list;
     }
 
+    function isValidUser() {
+      return request.resource.data.email is string &&
+             request.resource.data.role in ['admin', 'user'];
+    }
+
+    function isValidRegistration() {
+      return request.resource.data.name is string && request.resource.data.name.size() > 0 &&
+             request.resource.data.barcode_id is string && request.resource.data.barcode_id.size() == 8 &&
+             request.resource.data.department is string &&
+             request.resource.data.checked_in is bool;
+    }
+
     function isValidTeam() {
       return request.resource.data.name is string && request.resource.data.name.size() > 0 &&
              request.resource.data.manual_points is number;

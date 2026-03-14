@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Plus, Trash2, Trophy, Edit2, Settings, Star } from 'lucide-react';
+import { Plus, Trash2, Trophy, Edit2, Settings, Star, Share2, Link, Copy, Check } from 'lucide-react';
 
 interface Team {
   id: string;
@@ -25,6 +25,9 @@ export default function VotingAdmin() {
   const [newTeamName, setNewTeamName] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showVoteModal, setShowVoteModal] = useState(false);
+  const [selectedTeamForLink, setSelectedTeamForLink] = useState<string>('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     // Timeout to prevent infinite loading if there are permission issues
@@ -121,12 +124,24 @@ export default function VotingAdmin() {
 
     try {
       const newCategories = [...categories, newCategoryName.trim()];
+      // Ensure document exists by using setDoc with merge
       await setDoc(doc(db, 'config', 'voting'), { categories: newCategories }, { merge: true });
       setNewCategoryName('');
     } catch (err) {
       console.error('Error adding category:', err);
-      alert('Failed to add category');
+      alert('Failed to add category. Please check your permissions.');
     }
+  };
+
+  const getVotingLink = (teamId: string) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/vote?teamId=${teamId}`;
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDeleteCategory = async (catToDelete: string) => {
@@ -243,11 +258,18 @@ export default function VotingAdmin() {
         {/* Dashboard & Teams List */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-lg font-medium text-gray-900 flex items-center">
                 <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
                 Live Leaderboard
               </h2>
+              <button
+                onClick={() => setShowVoteModal(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Create Vote Link
+              </button>
             </div>
             <div className="divide-y divide-gray-200">
               {sortedTeams.length === 0 ? (
@@ -277,6 +299,17 @@ export default function VotingAdmin() {
                         </div>
                         
                         <div className="flex items-center gap-2 border-l pl-6">
+                          <button
+                            onClick={() => {
+                              setSelectedTeamForLink(team.id);
+                              setShowVoteModal(true);
+                            }}
+                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"
+                            title="Share Voting Link"
+                          >
+                            <Share2 className="w-4 h-4" />
+                          </button>
+                          
                           <div className="flex flex-col items-center">
                             <span className="text-xs text-gray-500 mb-1">Manual Pts</span>
                             <div className="flex items-center gap-1">
@@ -314,6 +347,81 @@ export default function VotingAdmin() {
           </div>
         </div>
       </div>
+
+      {/* Create Vote Link Modal */}
+      {showVoteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900">Create Voting Link</h3>
+              <button onClick={() => { setShowVoteModal(false); setSelectedTeamForLink(''); }} className="text-gray-400 hover:text-gray-600">
+                <Plus className="w-6 h-6 rotate-45" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Team to Vote For</label>
+                <select 
+                  value={selectedTeamForLink}
+                  onChange={(e) => setSelectedTeamForLink(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">-- Select a Team --</option>
+                  {teams.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedTeamForLink && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                    <p className="text-sm text-indigo-700 font-medium mb-2">Voter Link:</p>
+                    <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-indigo-200">
+                      <code className="text-xs text-indigo-600 truncate flex-1">
+                        {getVotingLink(selectedTeamForLink)}
+                      </code>
+                      <button 
+                        onClick={() => copyToClipboard(getVotingLink(selectedTeamForLink))}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                        title="Copy to clipboard"
+                      >
+                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Scoring Preview:</p>
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-xs space-y-1">
+                      {categories.length > 0 ? (
+                        categories.map(cat => (
+                          <div key={cat} className="flex justify-between">
+                            <span className="text-gray-600">{cat}</span>
+                            <span className="text-gray-400">0-100 pts</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-400 italic">No scoring categories defined.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <a 
+                    href={getVotingLink(selectedTeamForLink)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors"
+                  >
+                    <Link className="w-4 h-4" />
+                    Open Voter Page
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

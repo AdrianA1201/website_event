@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, addDoc, serverTimestamp, onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { CheckCircle, AlertCircle, Loader2, Users, Star } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 interface Team {
   id: string;
@@ -9,6 +10,7 @@ interface Team {
 }
 
 export default function VoterPage() {
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -16,7 +18,7 @@ export default function VoterPage() {
   const [categories, setCategories] = useState<string[]>([]);
   
   const [voterName, setVoterName] = useState('');
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(searchParams.get('teamId'));
   const [scores, setScores] = useState<Record<string, number>>({});
 
   useEffect(() => {
