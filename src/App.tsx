@@ -46,7 +46,7 @@ export default function App() {
             <Route path="/dashboard" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Dashboard /></ProtectedRoute>} />
             <Route path="/attendees" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Attendees /></ProtectedRoute>} />
             <Route path="/voting-admin" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><VotingAdmin /></ProtectedRoute>} />
-            <Route path="/vote" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><VoterPage /></ProtectedRoute>} />
+            <Route path="/vote" element={<VoterPage />} />
             <Route path="/config" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Configuration /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><UserSettings /></ProtectedRoute>} />
           </Routes>

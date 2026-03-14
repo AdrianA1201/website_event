@@ -45,6 +45,7 @@ export default function Attendees() {
     nameFontFamily: string;
     nameFontWeight: string;
     nameFontStyle: string;
+    nameTextAlign: 'left' | 'center' | 'right';
   }>({
     backgroundImage: null,
     barcodeX: 50,
@@ -59,6 +60,7 @@ export default function Attendees() {
     nameFontFamily: 'sans-serif',
     nameFontWeight: 'bold',
     nameFontStyle: 'normal',
+    nameTextAlign: 'center',
   });
 
   const [dragging, setDragging] = useState<'barcode' | 'name' | null>(null);
@@ -248,7 +250,7 @@ export default function Attendees() {
             const displayValue = name.split(' ').slice(0, 3).join(' ');
             ctx.font = `${templateConfig.nameFontStyle || 'normal'} ${templateConfig.nameFontWeight || 'bold'} ${templateConfig.nameFontSize}px ${templateConfig.nameFontFamily || 'sans-serif'}`;
             ctx.fillStyle = templateConfig.nameColor;
-            ctx.textAlign = 'left';
+            ctx.textAlign = templateConfig.nameTextAlign || 'center';
             ctx.textBaseline = 'top';
             ctx.fillText(displayValue, templateConfig.nameX, templateConfig.nameY);
           }
@@ -628,6 +630,14 @@ export default function Attendees() {
                           </select>
                         </div>
                         <div>
+                          <label className="block text-sm font-medium text-gray-700">Text Alignment</label>
+                          <select value={templateConfig.nameTextAlign || 'center'} onChange={e => setTemplateConfig(p => ({...p, nameTextAlign: e.target.value as any}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 bg-white">
+                            <option value="left">Left</option>
+                            <option value="center">Center</option>
+                            <option value="right">Right</option>
+                          </select>
+                        </div>
+                        <div>
                           <label className="block text-sm font-medium text-gray-700">Font Size</label>
                           <input type="number" value={templateConfig.nameFontSize} onChange={e => setTemplateConfig(p => ({...p, nameFontSize: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
                         </div>
@@ -680,7 +690,8 @@ export default function Attendees() {
                             fontFamily: templateConfig.nameFontFamily || 'sans-serif',
                             fontWeight: templateConfig.nameFontWeight || 'bold',
                             fontStyle: templateConfig.nameFontStyle || 'normal',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
+                            transform: templateConfig.nameTextAlign === 'center' ? 'translateX(-50%)' : templateConfig.nameTextAlign === 'right' ? 'translateX(-100%)' : 'none'
                           }}
                           onMouseDown={(e) => handleMouseDown(e, 'name')}
                         >
@@ -709,6 +720,7 @@ export default function Attendees() {
                       nameFontFamily: 'sans-serif',
                       nameFontWeight: 'bold',
                       nameFontStyle: 'normal',
+                      nameTextAlign: 'center',
                     };
                     setTemplateConfig(defaultConfig);
                     localStorage.removeItem('barcodeTemplateConfig');
