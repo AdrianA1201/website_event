@@ -13,6 +13,25 @@ service cloud.firestore {
     //   - require_phone: boolean (required)
     //   - require_company: boolean (required)
     //   - logo_url: string (optional)
+    // Document ID: 'voting'
+    // Fields:
+    //   - categories: list of strings
+    //
+    // Collection: teams
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string
+    //   - manual_points: number
+    //   - created_at: timestamp
+    //
+    // Collection: votes
+    // Document ID: auto-generated
+    // Fields:
+    //   - team_id: string
+    //   - voter_name: string
+    //   - scores: map
+    //   - total_score: number
+    //   - created_at: timestamp
     //
     // Collection: registrations
     // Document ID: auto-generated
@@ -64,29 +83,44 @@ service cloud.firestore {
              (!('logo_url' in request.resource.data) || (request.resource.data.logo_url is string && request.resource.data.logo_url.size() < 2000));
     }
 
-    function isValidRegistration() {
-      return hasOnlyAllowedFields(['barcode_id', 'name', 'department', 'phone', 'company', 'checked_in', 'created_at']) &&
-             hasRequiredFields(['barcode_id', 'name', 'department', 'checked_in', 'created_at']) &&
-             request.resource.data.barcode_id is string && request.resource.data.barcode_id.size() > 0 && request.resource.data.barcode_id.size() < 50 &&
-             request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100 &&
-             request.resource.data.department is string && request.resource.data.department.size() > 0 && request.resource.data.department.size() < 100 &&
-             (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() < 50)) &&
-             (!('company' in request.resource.data) || (request.resource.data.company is string && request.resource.data.company.size() < 100)) &&
-             request.resource.data.checked_in is bool &&
-             request.resource.data.created_at is timestamp;
+    function isValidVotingConfig() {
+      return request.resource.data.categories is list;
     }
 
-    function isValidUser() {
-      return hasOnlyAllowedFields(['email', 'role']) &&
-             hasRequiredFields(['email', 'role']) &&
-             request.resource.data.email is string && request.resource.data.email.size() > 0 && request.resource.data.email.size() < 100 &&
-             request.resource.data.role == 'admin';
+    function isValidTeam() {
+      return request.resource.data.name is string && request.resource.data.name.size() > 0 &&
+             request.resource.data.manual_points is number;
     }
 
-    match /config/{configId} {
+    function isValidVote() {
+      return request.resource.data.team_id is string && request.resource.data.team_id.size() > 0 &&
+             request.resource.data.voter_name is string && request.resource.data.voter_name.size() > 0 &&
+             request.resource.data.scores is map &&
+             request.resource.data.total_score is number;
+    }
+
+    match /config/default {
       allow read: if true;
       allow create, update: if isAdmin() && isValidConfig();
       allow delete: if false;
+    }
+
+    match /config/voting {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidVotingConfig();
+      allow delete: if false;
+    }
+
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidTeam();
+      allow delete: if isAdmin();
+    }
+
+    match /votes/{voteId} {
+      allow read: if true;
+      allow create: if isValidVote();
+      allow update, delete: if isAdmin();
     }
 
     match /registrations/{registrationId} {

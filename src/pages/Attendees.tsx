@@ -46,6 +46,7 @@ export default function Attendees() {
     nameFontWeight: string;
     nameFontStyle: string;
     nameTextAlign: 'left' | 'center' | 'right';
+    nameMaxWidth: number;
   }>({
     backgroundImage: null,
     barcodeX: 50,
@@ -61,6 +62,7 @@ export default function Attendees() {
     nameFontWeight: 'bold',
     nameFontStyle: 'normal',
     nameTextAlign: 'center',
+    nameMaxWidth: 300,
   });
 
   const [dragging, setDragging] = useState<'barcode' | 'name' | null>(null);
@@ -252,7 +254,11 @@ export default function Attendees() {
             ctx.fillStyle = templateConfig.nameColor;
             ctx.textAlign = templateConfig.nameTextAlign || 'center';
             ctx.textBaseline = 'top';
-            ctx.fillText(displayValue, templateConfig.nameX, templateConfig.nameY);
+            if (templateConfig.nameMaxWidth > 0) {
+              ctx.fillText(displayValue, templateConfig.nameX, templateConfig.nameY, templateConfig.nameMaxWidth);
+            } else {
+              ctx.fillText(displayValue, templateConfig.nameX, templateConfig.nameY);
+            }
           }
         }
         resolve(finalCanvas.toDataURL('image/png'));
@@ -642,6 +648,10 @@ export default function Attendees() {
                           <input type="number" value={templateConfig.nameFontSize} onChange={e => setTemplateConfig(p => ({...p, nameFontSize: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
                         </div>
                         <div>
+                          <label className="block text-sm font-medium text-gray-700">Max Width (0 for none)</label>
+                          <input type="number" value={templateConfig.nameMaxWidth || 0} onChange={e => setTemplateConfig(p => ({...p, nameMaxWidth: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+                        </div>
+                        <div>
                           <label className="block text-sm font-medium text-gray-700">Text Color</label>
                           <input type="color" value={templateConfig.nameColor} onChange={e => setTemplateConfig(p => ({...p, nameColor: e.target.value}))} className="mt-1 block w-full h-9 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-1" />
                         </div>
@@ -691,6 +701,9 @@ export default function Attendees() {
                             fontWeight: templateConfig.nameFontWeight || 'bold',
                             fontStyle: templateConfig.nameFontStyle || 'normal',
                             whiteSpace: 'nowrap',
+                            maxWidth: templateConfig.nameMaxWidth > 0 ? `${templateConfig.nameMaxWidth}px` : 'none',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                             transform: templateConfig.nameTextAlign === 'center' ? 'translateX(-50%)' : templateConfig.nameTextAlign === 'right' ? 'translateX(-100%)' : 'none'
                           }}
                           onMouseDown={(e) => handleMouseDown(e, 'name')}
@@ -721,6 +734,7 @@ export default function Attendees() {
                       nameFontWeight: 'bold',
                       nameFontStyle: 'normal',
                       nameTextAlign: 'center',
+                      nameMaxWidth: 300,
                     };
                     setTemplateConfig(defaultConfig);
                     localStorage.removeItem('barcodeTemplateConfig');

@@ -74,9 +74,9 @@ export default function VotingAdmin() {
         created_at: serverTimestamp()
       });
       setNewTeamName('');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error adding team:', err);
-      alert('Failed to add team');
+      alert(`Failed to add team: ${err.message}`);
     }
   };
 
