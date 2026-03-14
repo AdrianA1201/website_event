@@ -1,35 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { Plus, Trash2, Trophy, Edit2, Settings, Star, Share2, Link, Copy, Check, AlertTriangle } from 'lucide-react';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
+import { Plus, Trash2, Trophy, Edit2, Settings, Star, Share2, Link, Copy, Check } from 'lucide-react';
 
 interface Team {
   id: string;
@@ -56,31 +28,6 @@ export default function VotingAdmin() {
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [selectedTeamForLink, setSelectedTeamForLink] = useState<string>('');
   const [copied, setCopied] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<FirestoreErrorInfo | null>(null);
-
-  const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
-    const errInfo: FirestoreErrorInfo = {
-      error: error instanceof Error ? error.message : String(error),
-      authInfo: {
-        userId: auth.currentUser?.uid,
-        email: auth.currentUser?.email,
-        emailVerified: auth.currentUser?.emailVerified,
-        isAnonymous: auth.currentUser?.isAnonymous,
-        tenantId: auth.currentUser?.tenantId,
-        providerInfo: auth.currentUser?.providerData.map(provider => ({
-          providerId: provider.providerId,
-          displayName: provider.displayName,
-          email: provider.email,
-          photoUrl: provider.photoURL
-        })) || []
-      },
-      operationType,
-      path
-    };
-    console.error('Firestore Error: ', JSON.stringify(errInfo));
-    setDebugInfo(errInfo);
-    return errInfo;
-  };
 
   useEffect(() => {
     // Timeout to prevent infinite loading if there are permission issues
@@ -180,9 +127,8 @@ export default function VotingAdmin() {
       // Ensure document exists by using setDoc with merge
       await setDoc(doc(db, 'config', 'voting'), { categories: newCategories }, { merge: true });
       setNewCategoryName('');
-      setDebugInfo(null);
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'config/voting');
+      console.error('Error adding category:', err);
       alert('Failed to add category. Please check your permissions.');
     }
   };
@@ -223,20 +169,6 @@ export default function VotingAdmin() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {debugInfo && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-          <div className="flex items-center gap-2 text-red-700 font-bold mb-2">
-            <AlertTriangle className="w-5 h-5" />
-            Permission Error Details
-          </div>
-          <div className="text-xs font-mono bg-white p-3 rounded border border-red-100 overflow-auto max-h-40">
-            <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-          </div>
-          <p className="mt-2 text-sm text-red-600">
-            Your email: <span className="font-bold">{auth.currentUser?.email}</span>
-          </p>
-        </div>
-      )}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Voting Dashboard</h1>
         <p className="mt-1 text-sm text-gray-500">Manage teams, scoring categories, and view live results.</p>
