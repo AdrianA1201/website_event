@@ -6,25 +6,30 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function isAdmin() {
+    function isSuperAdmin() {
       return isAuthenticated() && (
         (request.auth.token.email != null && request.auth.token.email.lower() == "adrianazwal47@gmail.com") ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        request.auth.uid == "WIDoZopjAycoQXLQcP6GOLQH0DH2"
       );
     }
 
-    // Public rules for others - placed BEFORE admin catch-all
+    function isAdmin() {
+      return isSuperAdmin() || (
+        isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    // Explicit collection rules
     match /config/{configId} {
       allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /teams/{teamId} {
       allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /votes/{voteId} {
@@ -35,15 +40,12 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // User rules
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
     }
-
-    // Allow everything for admins
+    
+    // Fallback for any other collections
     match /{document=**} {
       allow read, write: if isAdmin();
     }
