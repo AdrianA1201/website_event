@@ -99,6 +99,18 @@ export default function VotingAdmin() {
     }
   };
 
+  const handleSetManualPoints = async (id: string, value: string) => {
+    const points = parseInt(value);
+    if (isNaN(points)) return;
+    try {
+      await updateDoc(doc(db, 'teams', id), {
+        manual_points: points
+      });
+    } catch (err) {
+      console.error('Error setting points:', err);
+    }
+  };
+
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
@@ -272,7 +284,12 @@ export default function VotingAdmin() {
                                 onClick={() => handleUpdateManualPoints(team.id, team.manual_points, -1)}
                                 className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center hover:bg-gray-200 text-gray-600"
                               >-</button>
-                              <span className="w-8 text-center font-medium">{team.manual_points}</span>
+                              <input 
+                                type="number"
+                                value={team.manual_points}
+                                onChange={(e) => handleSetManualPoints(team.id, e.target.value)}
+                                className="w-14 text-center font-medium border border-gray-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
                               <button 
                                 onClick={() => handleUpdateManualPoints(team.id, team.manual_points, 1)}
                                 className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center hover:bg-gray-200 text-gray-600"
