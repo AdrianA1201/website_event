@@ -50,13 +50,17 @@ export default function VotingAdmin() {
 
     // Timeout to prevent infinite loading if there are permission issues
     const timer = setTimeout(() => {
-      if (loading) {
-        setLoading(false);
-        setError('Loading timed out. You might not have permission to view this page.');
-      }
+      setLoading((prevLoading) => {
+        if (prevLoading) {
+          setError('Loading timed out. You might not have permission to view this page.');
+          return false;
+        }
+        return prevLoading;
+      });
     }, 5000);
 
     const unsubTeams = onSnapshot(query(collection(db, 'teams')), (snapshot) => {
+      clearTimeout(timer);
       const t: Team[] = [];
       snapshot.forEach((doc) => {
         t.push({ ...doc.data() as Team, id: doc.id });
@@ -64,6 +68,7 @@ export default function VotingAdmin() {
       setTeams(t);
       setLoading(false);
     }, (err) => {
+      clearTimeout(timer);
       console.error("Teams error:", err);
       setError('Permission denied for Teams. Please ensure you are logged in as an admin.');
       setLoading(false);
