@@ -76,9 +76,15 @@ service cloud.firestore {
              request.resource.data.total_score is number;
     }
 
-    match /config/{configId} {
+    // Scoring Categories are stored in config/voting
+    match /config/voting {
       allow read: if true;
       allow create, update, delete: if isAdmin();
+    }
+
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /teams/{teamId} {
