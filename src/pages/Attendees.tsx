@@ -37,13 +37,53 @@ export default function Attendees() {
     barcodeY: number;
     barcodeWidth: number;
     barcodeHeight: number;
+    showName: boolean;
+    nameX: number;
+    nameY: number;
+    nameFontSize: number;
+    nameColor: string;
   }>({
     backgroundImage: null,
     barcodeX: 50,
     barcodeY: 50,
     barcodeWidth: 200,
     barcodeHeight: 100,
+    showName: false,
+    nameX: 50,
+    nameY: 160,
+    nameFontSize: 24,
+    nameColor: '#000000',
   });
+
+  const [dragging, setDragging] = useState<'barcode' | 'name' | null>(null);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [initialPos, setInitialPos] = useState({ x: 0, y: 0 });
+
+  const handleMouseDown = (e: React.MouseEvent, element: 'barcode' | 'name') => {
+    e.preventDefault();
+    setDragging(element);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setInitialPos({
+      x: element === 'barcode' ? templateConfig.barcodeX : templateConfig.nameX,
+      y: element === 'barcode' ? templateConfig.barcodeY : templateConfig.nameY
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!dragging) return;
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    
+    if (dragging === 'barcode') {
+      setTemplateConfig(p => ({ ...p, barcodeX: initialPos.x + dx, barcodeY: initialPos.y + dy }));
+    } else if (dragging === 'name') {
+      setTemplateConfig(p => ({ ...p, nameX: initialPos.x + dx, nameY: initialPos.y + dy }));
+    }
+  };
+
+  const handleMouseUp = () => {
+    setDragging(null);
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('barcodeTemplateConfig');
@@ -198,6 +238,13 @@ export default function Attendees() {
             templateConfig.barcodeWidth,
             templateConfig.barcodeHeight
           );
+          if (templateConfig.showName) {
+            ctx.font = `bold ${templateConfig.nameFontSize}px sans-serif`;
+            ctx.fillStyle = templateConfig.nameColor;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(name, templateConfig.nameX, templateConfig.nameY);
+          }
         }
         resolve(finalCanvas.toDataURL('image/png'));
       };
@@ -518,14 +565,6 @@ export default function Attendees() {
                 {templateConfig.backgroundImage && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Barcode X Position</label>
-                      <input type="number" value={templateConfig.barcodeX} onChange={e => setTemplateConfig(p => ({...p, barcodeX: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Barcode Y Position</label>
-                      <input type="number" value={templateConfig.barcodeY} onChange={e => setTemplateConfig(p => ({...p, barcodeY: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
-                    </div>
-                    <div>
                       <label className="block text-sm font-medium text-gray-700">Barcode Width</label>
                       <input type="number" value={templateConfig.barcodeWidth} onChange={e => setTemplateConfig(p => ({...p, barcodeWidth: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
                     </div>
@@ -537,20 +576,75 @@ export default function Attendees() {
                 )}
 
                 {templateConfig.backgroundImage && (
-                  <div className="mt-4 border rounded-lg overflow-hidden relative bg-gray-100 flex justify-center items-center p-4">
-                    <div className="relative" style={{ maxWidth: '100%', overflow: 'auto' }}>
-                      <img src={templateConfig.backgroundImage} alt="Template Preview" className="max-w-none" style={{ opacity: 0.5 }} />
+                  <div className="border-t pt-4 mt-4">
+                    <div className="flex items-center mb-4">
+                      <input
+                        type="checkbox"
+                        id="showName"
+                        checked={templateConfig.showName}
+                        onChange={(e) => setTemplateConfig(p => ({...p, showName: e.target.checked}))}
+                        className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                      />
+                      <label htmlFor="showName" className="ml-2 block text-sm font-medium text-gray-700">
+                        Include Attendee Name
+                      </label>
+                    </div>
+                    
+                    {templateConfig.showName && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Font Size</label>
+                          <input type="number" value={templateConfig.nameFontSize} onChange={e => setTemplateConfig(p => ({...p, nameFontSize: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Text Color</label>
+                          <input type="color" value={templateConfig.nameColor} onChange={e => setTemplateConfig(p => ({...p, nameColor: e.target.value}))} className="mt-1 block w-full h-9 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-1" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {templateConfig.backgroundImage && (
+                  <div className="mt-4 border rounded-lg overflow-hidden relative bg-gray-100 flex justify-center items-center p-4 select-none">
+                    <p className="absolute top-2 left-2 text-xs text-gray-500 z-10 bg-white/80 px-2 py-1 rounded">Drag elements to position</p>
+                    <div 
+                      className="relative" 
+                      style={{ maxWidth: '100%', overflow: 'auto' }}
+                      onMouseMove={handleMouseMove}
+                      onMouseUp={handleMouseUp}
+                      onMouseLeave={handleMouseUp}
+                    >
+                      <img src={templateConfig.backgroundImage} alt="Template Preview" className="max-w-none pointer-events-none" style={{ opacity: 0.5 }} />
                       <div 
-                        className="absolute bg-white border-2 border-dashed border-indigo-500 flex items-center justify-center opacity-80"
+                        className="absolute bg-white border-2 border-dashed border-indigo-500 flex items-center justify-center opacity-80 cursor-move"
                         style={{
                           left: templateConfig.barcodeX,
                           top: templateConfig.barcodeY,
                           width: templateConfig.barcodeWidth,
                           height: templateConfig.barcodeHeight
                         }}
+                        onMouseDown={(e) => handleMouseDown(e, 'barcode')}
                       >
-                        <span className="text-xs font-bold text-indigo-700">BARCODE</span>
+                        <span className="text-xs font-bold text-indigo-700 pointer-events-none">BARCODE</span>
                       </div>
+                      
+                      {templateConfig.showName && (
+                        <div 
+                          className="absolute cursor-move border border-dashed border-transparent hover:border-gray-400"
+                          style={{
+                            left: templateConfig.nameX,
+                            top: templateConfig.nameY,
+                            color: templateConfig.nameColor,
+                            fontSize: `${templateConfig.nameFontSize}px`,
+                            fontWeight: 'bold',
+                            whiteSpace: 'nowrap'
+                          }}
+                          onMouseDown={(e) => handleMouseDown(e, 'name')}
+                        >
+                          Attendee Name
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -565,6 +659,11 @@ export default function Attendees() {
                       barcodeY: 50,
                       barcodeWidth: 200,
                       barcodeHeight: 100,
+                      showName: false,
+                      nameX: 50,
+                      nameY: 160,
+                      nameFontSize: 24,
+                      nameColor: '#000000',
                     };
                     setTemplateConfig(defaultConfig);
                     localStorage.removeItem('barcodeTemplateConfig');
