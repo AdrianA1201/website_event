@@ -26,7 +26,7 @@ export default function VotingAdmin() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [loading, setLoading] = useState(true);
   const [showVoteModal, setShowVoteModal] = useState(false);
-  const [selectedTeamForLink, setSelectedTeamForLink] = useState<string>('');
+  const [selectedTeamsForLink, setSelectedTeamsForLink] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -133,9 +133,10 @@ export default function VotingAdmin() {
     }
   };
 
-  const getVotingLink = (teamId: string) => {
+  const getVotingLink = (teamIds: string[]) => {
     const baseUrl = window.location.origin;
-    return `${baseUrl}/vote?teamId=${teamId}`;
+    if (teamIds.length === 0) return `${baseUrl}/vote`;
+    return `${baseUrl}/vote?teamIds=${teamIds.join(',')}`;
   };
 
   const copyToClipboard = (text: string) => {
@@ -301,7 +302,7 @@ export default function VotingAdmin() {
                         <div className="flex items-center gap-2 border-l pl-6">
                           <button
                             onClick={() => {
-                              setSelectedTeamForLink(team.id);
+                              setSelectedTeamsForLink([team.id]);
                               setShowVoteModal(true);
                             }}
                             className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"
@@ -354,11 +355,11 @@ export default function VotingAdmin() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-900">Create Voting Link</h3>
-              <button onClick={() => { setShowVoteModal(false); setSelectedTeamForLink(''); }} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => { setShowVoteModal(false); setSelectedTeamsForLink([]); }} className="text-gray-400 hover:text-gray-600">
                 <Plus className="w-6 h-6 rotate-45" />
               </button>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
                 <p className="text-sm text-gray-700 font-medium mb-2">General Voting Link (All Teams):</p>
                 <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-200">
@@ -381,34 +382,43 @@ export default function VotingAdmin() {
                   <div className="w-full border-t border-gray-200"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Or Select Specific Team</span>
+                  <span className="px-2 bg-white text-gray-500">Or Select Specific Teams</span>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Team to Lock Link For</label>
-                <select 
-                  value={selectedTeamForLink}
-                  onChange={(e) => setSelectedTeamForLink(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  <option value="">-- Select a Team --</option>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Teams to include in link:</label>
+                <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg">
                   {teams.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <label key={t.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={selectedTeamsForLink.includes(t.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTeamsForLink(prev => [...prev, t.id]);
+                          } else {
+                            setSelectedTeamsForLink(prev => prev.filter(id => id !== t.id));
+                          }
+                        }}
+                        className="rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-gray-700">{t.name}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
-              {selectedTeamForLink && (
+              {selectedTeamsForLink.length > 0 && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                   <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                    <p className="text-sm text-indigo-700 font-medium mb-2">Voter Link:</p>
+                    <p className="text-sm text-indigo-700 font-medium mb-2">Custom Voter Link:</p>
                     <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-indigo-200">
                       <code className="text-xs text-indigo-600 truncate flex-1">
-                        {getVotingLink(selectedTeamForLink)}
+                        {getVotingLink(selectedTeamsForLink)}
                       </code>
                       <button 
-                        onClick={() => copyToClipboard(getVotingLink(selectedTeamForLink))}
+                        onClick={() => copyToClipboard(getVotingLink(selectedTeamsForLink))}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
                         title="Copy to clipboard"
                       >
@@ -420,6 +430,7 @@ export default function VotingAdmin() {
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-gray-700">Scoring Preview:</p>
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-xs space-y-1">
+                      <p className="font-bold text-indigo-600 mb-1">Voting for {selectedTeamsForLink.length} team(s)</p>
                       {categories.length > 0 ? (
                         categories.map(cat => (
                           <div key={cat} className="flex justify-between">
@@ -434,7 +445,7 @@ export default function VotingAdmin() {
                   </div>
 
                   <a 
-                    href={getVotingLink(selectedTeamForLink)}
+                    href={getVotingLink(selectedTeamsForLink)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 w-full py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors"

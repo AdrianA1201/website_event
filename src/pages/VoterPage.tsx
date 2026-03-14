@@ -18,9 +18,9 @@ export default function VoterPage() {
   const [categories, setCategories] = useState<string[]>([]);
   
   const [voterName, setVoterName] = useState('');
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(searchParams.get('teamId'));
-  const [scores, setScores] = useState<Record<string, number>>({});
-  const [isLocked, setIsLocked] = useState(!!searchParams.get('teamId'));
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(searchParams.get('teamIds')?.split(',') || []);
+  const [scores, setScores] = useState<Record<string, Record<string, number>>>({});
+  const [isLocked, setIsLocked] = useState(!!searchParams.get('teamIds'));
 
   useEffect(() => {
     const qTeams = query(collection(db, 'teams'));
@@ -36,12 +36,24 @@ export default function VoterPage() {
       if (docSnap.exists()) {
         const cats = docSnap.data().categories || [];
         setCategories(cats);
-        // Initialize scores
-        const initialScores: Record<string, number> = {};
-        cats.forEach((cat: string) => {
-          initialScores[cat] = 0;
+        
+        // Initialize scores for all teams if not already set
+        setScores(prev => {
+          const newScores = { ...prev };
+          const teamsToInit = isLocked ? selectedTeamIds : teams.map(t => t.id);
+          
+          teamsToInit.forEach(teamId => {
+            if (!newScores[teamId]) {
+              newScores[teamId] = {};
+            }
+            cats.forEach((cat: string) => {
+              if (newScores[teamId][cat] === undefined) {
+                newScores[teamId][cat] = 0;
+              }
+            });
+          });
+          return newScores;
         });
-        setScores(prev => ({ ...initialScores, ...prev }));
       } else {
         setCategories([]);
       }
@@ -51,9 +63,9 @@ export default function VoterPage() {
       unsubTeams();
       unsubConfig();
     };
-  }, []);
+  }, [isLocked, selectedTeamIds.join(','), teams.length]);
 
-  const handleScoreChange = (category: string, value: string) => {
+  const handleScoreChange = (teamId: string, category: string, value: string) => {
     let num = parseInt(value, 10);
     if (isNaN(num)) num = 0;
     if (num < 0) num = 0;
@@ -61,7 +73,10 @@ export default function VoterPage() {
     
     setScores(prev => ({
       ...prev,
-      [category]: num
+      [teamId]: {
+        ...(prev[teamId] || {}),
+        [category]: num
+      }
     }));
   };
 
@@ -71,8 +86,8 @@ export default function VoterPage() {
       setError('Please enter your name.');
       return;
     }
-    if (!selectedTeam) {
-      setError('Please select a team to vote for.');
+    if (selectedTeamIds.length === 0) {
+      setError('Please select at least one team to vote for.');
       return;
     }
     if (categories.length === 0) {
@@ -84,18 +99,23 @@ export default function VoterPage() {
     setError('');
 
     try {
-      // Calculate total score
-      const totalScore = Object.values(scores).reduce((sum: number, score: number) => sum + score, 0);
-
-      await addDoc(collection(db, 'votes'), {
-        team_id: selectedTeam,
-        voter_name: voterName.trim(),
-        scores: scores,
-        total_score: totalScore,
-        created_at: serverTimestamp()
+      // Submit a vote for each selected team
+      const votePromises = selectedTeamIds.map(teamId => {
+        const teamScores = scores[teamId] || {};
+        const totalScore = Object.values(teamScores).reduce((sum: number, score: number) => sum + score, 0);
+        
+        return addDoc(collection(db, 'votes'), {
+          team_id: teamId,
+          voter_name: voterName.trim(),
+          scores: teamScores,
+          total_score: totalScore,
+          created_at: serverTimestamp()
+        });
       });
 
-      setSuccess(`Vote received! Thank you, ${voterName.trim()}.`);
+      await Promise.all(votePromises);
+
+      setSuccess(`Votes received for ${selectedTeamIds.length} team(s)! Thank you, ${voterName.trim()}.`);
       resetForm();
       
       // Clear success message after 5 seconds
@@ -113,12 +133,10 @@ export default function VoterPage() {
 
   const resetForm = () => {
     setVoterName('');
-    setSelectedTeam(null);
-    const initialScores: Record<string, number> = {};
-    categories.forEach((cat: string) => {
-      initialScores[cat] = 0;
-    });
-    setScores(initialScores);
+    if (!isLocked) {
+      setSelectedTeamIds([]);
+    }
+    setScores({});
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -165,7 +183,7 @@ export default function VoterPage() {
             {/* Team Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-4">
-                {isLocked ? 'Voting For:' : 'Select Team'}
+                {isLocked ? 'Voting For:' : 'Select Teams to Vote For'}
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {teams.length === 0 ? (
@@ -174,25 +192,32 @@ export default function VoterPage() {
                   </div>
                 ) : (
                   teams
-                    .filter(t => !isLocked || t.id === selectedTeam)
+                    .filter(t => !isLocked || selectedTeamIds.includes(t.id))
                     .map((team) => (
                     <button
                       type="button"
                       key={team.id}
-                      onClick={() => !isLocked && setSelectedTeam(team.id)}
+                      onClick={() => {
+                        if (isLocked) return;
+                        setSelectedTeamIds(prev => 
+                          prev.includes(team.id) 
+                            ? prev.filter(id => id !== team.id)
+                            : [...prev, team.id]
+                        );
+                      }}
                       className={`p-4 rounded-xl border-2 text-left transition-all ${
-                        selectedTeam === team.id
+                        selectedTeamIds.includes(team.id)
                           ? 'border-indigo-600 bg-indigo-50 ring-2 ring-indigo-600 ring-offset-2'
                           : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
                       } ${isLocked ? 'cursor-default' : 'cursor-pointer'}`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          selectedTeam === team.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'
+                          selectedTeamIds.includes(team.id) ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'
                         }`}>
                           <Users className="w-5 h-5" />
                         </div>
-                        <span className={`text-lg font-medium ${selectedTeam === team.id ? 'text-indigo-900' : 'text-gray-900'}`}>
+                        <span className={`text-lg font-medium ${selectedTeamIds.includes(team.id) ? 'text-indigo-900' : 'text-gray-900'}`}>
                           {team.name}
                         </span>
                       </div>
@@ -202,41 +227,53 @@ export default function VoterPage() {
               </div>
             </div>
 
-            {/* Scoring Categories */}
-            {selectedTeam && (
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Scores (0 - 100)
-                </label>
+            {/* Scoring Categories for each team */}
+            {selectedTeamIds.length > 0 && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {categories.length > 0 ? (
-                  <div className="space-y-4 bg-gray-50 p-6 rounded-xl border border-gray-200">
-                    {categories.map((category) => (
-                      <div key={category} className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 flex-1">
-                          <Star className="w-5 h-5 text-yellow-500" />
-                          <span className="font-medium text-gray-700">{category}</span>
+                  selectedTeamIds.map(teamId => {
+                    const team = teams.find(t => t.id === teamId);
+                    if (!team) return null;
+                    const teamScores = scores[teamId] || {};
+                    const totalScore = Object.values(teamScores).reduce((sum: number, score: number) => sum + score, 0);
+
+                    return (
+                      <div key={teamId} className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4">
+                        <h3 className="text-xl font-bold text-indigo-900 flex items-center gap-2">
+                          <Users className="w-5 h-5" />
+                          {team.name}
+                        </h3>
+                        <div className="space-y-4">
+                          {categories.map((category) => (
+                            <div key={category} className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-2 flex-1">
+                                <Star className="w-5 h-5 text-yellow-500" />
+                                <span className="font-medium text-gray-700">{category}</span>
+                              </div>
+                              <div className="w-32">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={teamScores[category] === 0 ? '' : teamScores[category]}
+                                  onChange={(e) => handleScoreChange(teamId, category, e.target.value)}
+                                  className="block w-full text-center text-xl font-bold p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                                  placeholder="0"
+                                  required
+                                />
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <div className="w-32">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={scores[category] === 0 ? '' : scores[category]}
-                            onChange={(e) => handleScoreChange(category, e.target.value)}
-                            className="block w-full text-center text-xl font-bold p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="0"
-                            required
-                          />
+                        <div className="pt-4 mt-4 border-t border-gray-200 flex justify-between items-center">
+                          <span className="font-bold text-gray-900">Team Total:</span>
+                          <span className="text-2xl font-bold text-indigo-600">
+                            {totalScore}
+                          </span>
                         </div>
                       </div>
-                    ))}
-                    <div className="pt-4 mt-4 border-t border-gray-200 flex justify-between items-center">
-                      <span className="font-bold text-gray-900">Total Score:</span>
-                      <span className="text-2xl font-bold text-indigo-600">
-                        {Object.values(scores).reduce((sum: number, score: number) => sum + score, 0)}
-                      </span>
-                    </div>
-                  </div>
+                    );
+                  })
                 ) : (
                   <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-center">
                     <p className="font-medium">No scoring categories have been set up yet.</p>
@@ -248,10 +285,10 @@ export default function VoterPage() {
 
             <button
               type="submit"
-              disabled={loading || !selectedTeam || !voterName.trim()}
+              disabled={loading || selectedTeamIds.length === 0 || !voterName.trim()}
               className="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-xl shadow-sm text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Submit Vote'}
+              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Submit All Votes'}
             </button>
           </form>
         </div>
