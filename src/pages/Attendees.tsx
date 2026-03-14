@@ -3,7 +3,7 @@ import Barcode from 'react-barcode';
 import JsBarcode from 'jsbarcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { Loader2, Download, Search, Upload, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { Loader2, Download, Search, Upload, FileSpreadsheet, Trash2, LayoutTemplate, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { collection, onSnapshot, query, deleteDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -29,6 +29,30 @@ export default function Attendees() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const itemsPerPage = 24;
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [templateConfig, setTemplateConfig] = useState<{
+    backgroundImage: string | null;
+    barcodeX: number;
+    barcodeY: number;
+    barcodeWidth: number;
+    barcodeHeight: number;
+  }>({
+    backgroundImage: null,
+    barcodeX: 50,
+    barcodeY: 50,
+    barcodeWidth: 200,
+    barcodeHeight: 100,
+  });
+
+  useEffect(() => {
+    const saved = localStorage.getItem('barcodeTemplateConfig');
+    if (saved) {
+      try {
+        setTemplateConfig(JSON.parse(saved));
+      } catch (e) {}
+    }
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, 'registrations'));
@@ -142,20 +166,51 @@ export default function Attendees() {
     }
   };
 
-  const downloadBarcode = (id: string, name: string) => {
-    const canvas = document.createElement('canvas');
-    JsBarcode(canvas, id, {
-      width: 1.5,
-      height: 60,
-      displayValue: false,
-      background: "#ffffff",
-      lineColor: "#000000",
-      margin: 10
+  const generateBarcodeImage = async (id: string, name: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const barcodeCanvas = document.createElement('canvas');
+      JsBarcode(barcodeCanvas, id, {
+        width: 1.5,
+        height: 60,
+        displayValue: false,
+        background: "#ffffff",
+        lineColor: "#000000",
+        margin: 10
+      });
+
+      if (!templateConfig.backgroundImage) {
+        resolve(barcodeCanvas.toDataURL('image/png'));
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = img.width;
+        finalCanvas.height = img.height;
+        const ctx = finalCanvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          ctx.drawImage(
+            barcodeCanvas,
+            templateConfig.barcodeX,
+            templateConfig.barcodeY,
+            templateConfig.barcodeWidth,
+            templateConfig.barcodeHeight
+          );
+        }
+        resolve(finalCanvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(barcodeCanvas.toDataURL('image/png'));
+      img.src = templateConfig.backgroundImage;
     });
-    const pngFile = canvas.toDataURL('image/png');
+  };
+
+  const downloadBarcode = async (id: string, name: string) => {
+    const dataUrl = await generateBarcodeImage(id, name);
     const downloadLink = document.createElement('a');
     downloadLink.download = `Barcode-${name.replace(/\s+/g, '-')}-${id}.png`;
-    downloadLink.href = `${pngFile}`;
+    downloadLink.href = dataUrl;
     downloadLink.click();
   };
 
@@ -229,17 +284,8 @@ export default function Attendees() {
       const selectedRegs = registrations.filter(r => selectedIds.has(r.id));
       
       for (const reg of selectedRegs) {
-        const canvas = document.createElement('canvas');
-        JsBarcode(canvas, reg.barcode_id, {
-          width: 1.5,
-          height: 60,
-          displayValue: false,
-          background: "#ffffff",
-          lineColor: "#000000",
-          margin: 10
-        });
-        
-        const base64Data = canvas.toDataURL('image/png').replace(/^data:image\/(png|jpg);base64,/, "");
+        const dataUrl = await generateBarcodeImage(reg.barcode_id, reg.name);
+        const base64Data = dataUrl.replace(/^data:image\/(png|jpg);base64,/, "");
         folder.file(`Barcode-${reg.name.replace(/\s+/g, '-')}-${reg.barcode_id}.png`, base64Data, {base64: true});
       }
 
@@ -286,6 +332,14 @@ export default function Attendees() {
             />
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => setIsTemplateModalOpen(true)}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              title="Configure Barcode Template"
+            >
+              <LayoutTemplate className="h-4 w-4 mr-2" />
+              Design
+            </button>
             <button
               onClick={downloadTemplate}
               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -416,6 +470,121 @@ export default function Attendees() {
           >
             Load More
           </button>
+        </div>
+      )}
+
+      {isTemplateModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={() => setIsTemplateModalOpen(false)} />
+            <div className="relative inline-block w-full max-w-2xl p-6 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium leading-6 text-gray-900">Barcode Template Settings</h3>
+                <button onClick={() => setIsTemplateModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Background Image</label>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                          const result = evt.target?.result as string;
+                          const img = new Image();
+                          img.onload = () => {
+                            setTemplateConfig(prev => ({ 
+                              ...prev, 
+                              backgroundImage: result,
+                              barcodeX: Math.floor(img.width / 2) - 100,
+                              barcodeY: Math.floor(img.height / 2) - 50,
+                            }));
+                          };
+                          img.src = result;
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  />
+                </div>
+
+                {templateConfig.backgroundImage && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Barcode X Position</label>
+                      <input type="number" value={templateConfig.barcodeX} onChange={e => setTemplateConfig(p => ({...p, barcodeX: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Barcode Y Position</label>
+                      <input type="number" value={templateConfig.barcodeY} onChange={e => setTemplateConfig(p => ({...p, barcodeY: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Barcode Width</label>
+                      <input type="number" value={templateConfig.barcodeWidth} onChange={e => setTemplateConfig(p => ({...p, barcodeWidth: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Barcode Height</label>
+                      <input type="number" value={templateConfig.barcodeHeight} onChange={e => setTemplateConfig(p => ({...p, barcodeHeight: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
+                    </div>
+                  </div>
+                )}
+
+                {templateConfig.backgroundImage && (
+                  <div className="mt-4 border rounded-lg overflow-hidden relative bg-gray-100 flex justify-center items-center p-4">
+                    <div className="relative" style={{ maxWidth: '100%', overflow: 'auto' }}>
+                      <img src={templateConfig.backgroundImage} alt="Template Preview" className="max-w-none" style={{ opacity: 0.5 }} />
+                      <div 
+                        className="absolute bg-white border-2 border-dashed border-indigo-500 flex items-center justify-center opacity-80"
+                        style={{
+                          left: templateConfig.barcodeX,
+                          top: templateConfig.barcodeY,
+                          width: templateConfig.barcodeWidth,
+                          height: templateConfig.barcodeHeight
+                        }}
+                      >
+                        <span className="text-xs font-bold text-indigo-700">BARCODE</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    const defaultConfig = {
+                      backgroundImage: null,
+                      barcodeX: 50,
+                      barcodeY: 50,
+                      barcodeWidth: 200,
+                      barcodeHeight: 100,
+                    };
+                    setTemplateConfig(defaultConfig);
+                    localStorage.removeItem('barcodeTemplateConfig');
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-red-700 bg-red-100 border border-transparent rounded-md hover:bg-red-200"
+                >
+                  Clear Template
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.setItem('barcodeTemplateConfig', JSON.stringify(templateConfig));
+                    setIsTemplateModalOpen(false);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700"
+                >
+                  Save & Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
