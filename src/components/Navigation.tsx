@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Barcode, LayoutDashboard, Settings, Users, UserCog, LogOut, Menu, X, Trophy, Vote } from 'lucide-react';
+import { Barcode, LayoutDashboard, Settings, Users, UserCog, LogOut, Menu, X, Trophy, Dices } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useState } from 'react';
@@ -14,7 +14,7 @@ export default function Navigation() {
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/attendees', label: 'Attendees', icon: Users },
     { to: '/voting-admin', label: 'Voting Admin', icon: Trophy },
-    { to: '/vote', label: 'Vote Here', icon: Vote },
+    { to: '/random', label: 'Random Tools', icon: Dices },
     { to: '/config', label: 'Settings', icon: Settings },
     { to: '/users', label: 'Users', icon: UserCog },
   ];

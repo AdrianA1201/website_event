@@ -11,6 +11,7 @@ import Configuration from './pages/Configuration';
 import Attendees from './pages/Attendees';
 import VotingAdmin from './pages/VotingAdmin';
 import VoterPage from './pages/VoterPage';
+import RandomTools from './pages/RandomTools';
 import Login from './pages/Login';
 import UserSettings from './pages/UserSettings';
 import React, { useState, useEffect } from 'react';
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="/dashboard" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Dashboard /></ProtectedRoute>} />
             <Route path="/attendees" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Attendees /></ProtectedRoute>} />
             <Route path="/voting-admin" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><VotingAdmin /></ProtectedRoute>} />
+            <Route path="/random" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><RandomTools /></ProtectedRoute>} />
             <Route path="/vote" element={<VoterPage />} />
             <Route path="/config" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><Configuration /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute isAuthenticated={isAuthenticated} loading={loading}><UserSettings /></ProtectedRoute>} />
