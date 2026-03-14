@@ -30,6 +30,17 @@ export default function VotingAdmin() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    // Debugging: Log current user info
+    if (auth.currentUser) {
+      console.log("Current User:", {
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        emailVerified: auth.currentUser.emailVerified
+      });
+    } else {
+      console.log("No user logged in");
+    }
+
     // Timeout to prevent infinite loading if there are permission issues
     const timer = setTimeout(() => setLoading(false), 2000);
 
