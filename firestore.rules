@@ -6,22 +6,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isSuperAdmin() {
-      return isAuthenticated() && (
-        (request.auth.token.email != null && request.auth.token.email.lower() == "adrianazwal47@gmail.com") ||
-        request.auth.uid == "WIDoZopjAycoQXLQcP6GOLQH0DH2"
-      );
-    }
-
     function isAdmin() {
-      return isSuperAdmin() || (
-        isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      return isAuthenticated() && request.auth.token != null && request.auth.token.email != null && (
+        request.auth.token.email.lower() == "adrianazwal47@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin')
       );
     }
 
-    // Explicit collection rules
     match /config/{configId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -38,7 +32,7 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    match /registrations/{regId} {
+    match /registrations/{registrationId} {
       allow read: if isAdmin();
       allow create: if true;
       allow update, delete: if isAdmin();
@@ -49,7 +43,6 @@ service cloud.firestore {
       allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
     }
     
-    // Fallback for any other collections
     match /{document=**} {
       allow read, write: if isAdmin();
     }
