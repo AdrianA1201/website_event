@@ -42,6 +42,9 @@ export default function Attendees() {
     nameY: number;
     nameFontSize: number;
     nameColor: string;
+    nameFontFamily: string;
+    nameFontWeight: string;
+    nameFontStyle: string;
   }>({
     backgroundImage: null,
     barcodeX: 50,
@@ -53,6 +56,9 @@ export default function Attendees() {
     nameY: 160,
     nameFontSize: 24,
     nameColor: '#000000',
+    nameFontFamily: 'sans-serif',
+    nameFontWeight: 'bold',
+    nameFontStyle: 'normal',
   });
 
   const [dragging, setDragging] = useState<'barcode' | 'name' | null>(null);
@@ -239,7 +245,7 @@ export default function Attendees() {
             templateConfig.barcodeHeight
           );
           if (templateConfig.showName) {
-            ctx.font = `bold ${templateConfig.nameFontSize}px sans-serif`;
+            ctx.font = `${templateConfig.nameFontStyle || 'normal'} ${templateConfig.nameFontWeight || 'bold'} ${templateConfig.nameFontSize}px ${templateConfig.nameFontFamily || 'sans-serif'}`;
             ctx.fillStyle = templateConfig.nameColor;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
@@ -591,7 +597,35 @@ export default function Attendees() {
                     </div>
                     
                     {templateConfig.showName && (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-4 mt-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Font Family</label>
+                          <select value={templateConfig.nameFontFamily || 'sans-serif'} onChange={e => setTemplateConfig(p => ({...p, nameFontFamily: e.target.value}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 bg-white">
+                            <option value="sans-serif">Sans-serif</option>
+                            <option value="serif">Serif</option>
+                            <option value="monospace">Monospace</option>
+                            <option value="Arial">Arial</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Courier New">Courier New</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Font Weight</label>
+                          <select value={templateConfig.nameFontWeight || 'bold'} onChange={e => setTemplateConfig(p => ({...p, nameFontWeight: e.target.value}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 bg-white">
+                            <option value="normal">Normal</option>
+                            <option value="bold">Bold</option>
+                            <option value="bolder">Bolder</option>
+                            <option value="lighter">Lighter</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Font Style</label>
+                          <select value={templateConfig.nameFontStyle || 'normal'} onChange={e => setTemplateConfig(p => ({...p, nameFontStyle: e.target.value}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2 bg-white">
+                            <option value="normal">Normal</option>
+                            <option value="italic">Italic</option>
+                            <option value="oblique">Oblique</option>
+                          </select>
+                        </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Font Size</label>
                           <input type="number" value={templateConfig.nameFontSize} onChange={e => setTemplateConfig(p => ({...p, nameFontSize: Number(e.target.value)}))} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2" />
@@ -637,7 +671,9 @@ export default function Attendees() {
                             top: templateConfig.nameY,
                             color: templateConfig.nameColor,
                             fontSize: `${templateConfig.nameFontSize}px`,
-                            fontWeight: 'bold',
+                            fontFamily: templateConfig.nameFontFamily || 'sans-serif',
+                            fontWeight: templateConfig.nameFontWeight || 'bold',
+                            fontStyle: templateConfig.nameFontStyle || 'normal',
                             whiteSpace: 'nowrap'
                           }}
                           onMouseDown={(e) => handleMouseDown(e, 'name')}
@@ -664,6 +700,9 @@ export default function Attendees() {
                       nameY: 160,
                       nameFontSize: 24,
                       nameColor: '#000000',
+                      nameFontFamily: 'sans-serif',
+                      nameFontWeight: 'bold',
+                      nameFontStyle: 'normal',
                     };
                     setTemplateConfig(defaultConfig);
                     localStorage.removeItem('barcodeTemplateConfig');
