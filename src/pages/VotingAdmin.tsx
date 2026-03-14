@@ -24,6 +24,7 @@ export default function VotingAdmin() {
   const [newTeamName, setNewTeamName] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [selectedTeamsForLink, setSelectedTeamsForLink] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
@@ -41,7 +42,12 @@ export default function VotingAdmin() {
     }
 
     // Timeout to prevent infinite loading if there are permission issues
-    const timer = setTimeout(() => setLoading(false), 2000);
+    const timer = setTimeout(() => {
+      if (loading) {
+        setLoading(false);
+        setError('Loading timed out. You might not have permission to view this page.');
+      }
+    }, 5000);
 
     const unsubTeams = onSnapshot(query(collection(db, 'teams')), (snapshot) => {
       const t: Team[] = [];
@@ -50,7 +56,11 @@ export default function VotingAdmin() {
       });
       setTeams(t);
       setLoading(false);
-    }, (err) => console.error("Teams error:", err));
+    }, (err) => {
+      console.error("Teams error:", err);
+      setError('Permission denied for Teams. Please ensure you are logged in as an admin.');
+      setLoading(false);
+    });
 
     const unsubVotes = onSnapshot(query(collection(db, 'votes')), (snapshot) => {
       const v: Vote[] = [];
@@ -58,7 +68,10 @@ export default function VotingAdmin() {
         v.push({ ...doc.data() as Vote, id: doc.id });
       });
       setVotes(v);
-    }, (err) => console.error("Votes error:", err));
+    }, (err) => {
+      console.error("Votes error:", err);
+      // Don't set global error for votes if teams worked, but log it
+    });
 
     return () => {
       clearTimeout(timer);
@@ -142,6 +155,11 @@ export default function VotingAdmin() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 font-medium">
+          {error}
+        </div>
+      )}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Voting Dashboard</h1>
         <p className="mt-1 text-sm text-gray-500">Manage teams, scoring categories, and view live results.</p>

@@ -24,6 +24,28 @@
         "role": { "type": "string", "enum": ["admin"] }
       },
       "required": ["email", "role"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "A team participating in the event",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "Vote": {
+      "title": "Vote",
+      "description": "A vote cast for a team",
+      "type": "object",
+      "properties": {
+        "team_id": { "type": "string" },
+        "voter_name": { "type": "string" },
+        "total_score": { "type": "number" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["team_id", "voter_name", "total_score"]
     }
   },
   "firestore": {
@@ -34,6 +56,14 @@
     "users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "Admin users"
+    },
+    "teams/{teamId}": {
+      "schema": { "$ref": "#/entities/Team" },
+      "description": "Teams"
+    },
+    "votes/{voteId}": {
+      "schema": { "$ref": "#/entities/Vote" },
+      "description": "Votes"
     }
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, addDoc, serverTimestamp, onSnapshot, doc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { CheckCircle, AlertCircle, Loader2, Users, Star } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -29,12 +29,14 @@ export default function VoterPage() {
         t.push({ ...doc.data() as Team, id: doc.id });
       });
       setTeams(t);
+    }, (err) => {
+      console.error("Teams fetch error:", err);
     });
 
     return () => {
       unsubTeams();
     };
-  }, [isLocked, selectedTeamIds.join(','), teams.length]);
+  }, []);
 
   const handleScoreChange = (teamId: string, value: string) => {
     let num = parseInt(value, 10);
@@ -64,15 +66,40 @@ export default function VoterPage() {
 
     try {
       // Submit a vote for each selected team
-      const votePromises = selectedTeamIds.map(teamId => {
+      const votePromises = selectedTeamIds.map(async (teamId) => {
         const totalScore = scores[teamId] || 0;
+        const path = 'votes';
         
-        return addDoc(collection(db, 'votes'), {
-          team_id: teamId,
-          voter_name: voterName.trim(),
-          total_score: totalScore,
-          created_at: serverTimestamp()
-        });
+        try {
+          return await addDoc(collection(db, path), {
+            team_id: teamId,
+            voter_name: voterName.trim(),
+            total_score: totalScore,
+            created_at: serverTimestamp()
+          });
+        } catch (err) {
+          // Critical Directive: Specific error handling for Firestore
+          const errInfo = {
+            error: err instanceof Error ? err.message : String(err),
+            authInfo: {
+              userId: auth.currentUser?.uid,
+              email: auth.currentUser?.email,
+              emailVerified: auth.currentUser?.emailVerified,
+              isAnonymous: auth.currentUser?.isAnonymous,
+              tenantId: auth.currentUser?.tenantId,
+              providerInfo: auth.currentUser?.providerData.map(provider => ({
+                providerId: provider.providerId,
+                displayName: provider.displayName,
+                email: provider.email,
+                photoUrl: provider.photoURL
+              })) || []
+            },
+            operationType: 'create',
+            path
+          };
+          console.error('Firestore Error: ', JSON.stringify(errInfo));
+          throw new Error(JSON.stringify(errInfo));
+        }
       });
 
       await Promise.all(votePromises);
