@@ -359,8 +359,34 @@ export default function VotingAdmin() {
               </button>
             </div>
             <div className="p-6 space-y-6">
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-700 font-medium mb-2">General Voting Link (All Teams):</p>
+                <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-200">
+                  <code className="text-xs text-gray-600 truncate flex-1">
+                    {window.location.origin}/vote
+                  </code>
+                  <button 
+                    onClick={() => copyToClipboard(`${window.location.origin}/vote`)}
+                    className="p-2 text-gray-600 hover:bg-gray-50 rounded-md transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2 italic">Voters can select any team from the list.</p>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Or Select Specific Team</span>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Team to Vote For</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Team to Lock Link For</label>
                 <select 
                   value={selectedTeamForLink}
                   onChange={(e) => setSelectedTeamForLink(e.target.value)}

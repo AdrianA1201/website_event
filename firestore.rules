@@ -59,54 +59,15 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin') ||
-        (request.auth.token.email == "Adrianazwal47@gmail.com" || request.auth.token.email == "adrianazwal47@gmail.com")
+        request.auth.uid == "WIDoZopjAycoQXLQcP6GOLQH0DH2" ||
+        request.auth.token.email == "adrianazwal47@gmail.com" ||
+        request.auth.token.email == "Adrianazwal47@gmail.com"
       );
     }
 
-    function hasOnlyAllowedFields(allowedFields) {
-      return request.resource.data.keys().hasOnly(allowedFields);
-    }
-
-    function hasRequiredFields(requiredFields) {
-      return request.resource.data.keys().hasAll(requiredFields);
-    }
-
-    function isValidConfig() {
-      return hasOnlyAllowedFields(['event_name', 'event_date', 'require_phone', 'require_company', 'logo_url']) &&
-             hasRequiredFields(['event_name', 'event_date', 'require_phone', 'require_company']) &&
-             request.resource.data.event_name is string && request.resource.data.event_name.size() > 0 && request.resource.data.event_name.size() < 100 &&
-             request.resource.data.event_date is string && request.resource.data.event_date.size() > 0 && request.resource.data.event_date.size() < 50 &&
-             request.resource.data.require_phone is bool &&
-             request.resource.data.require_company is bool &&
-             (!('logo_url' in request.resource.data) || (request.resource.data.logo_url is string && request.resource.data.logo_url.size() < 2000));
-    }
-
-    function isValidVotingConfig() {
-      return request.resource.data.categories is list;
-    }
-
-    function isValidUser() {
-      return request.resource.data.email is string &&
-             request.resource.data.role in ['admin', 'user'];
-    }
-
-    function isValidRegistration() {
-      return request.resource.data.name is string && request.resource.data.name.size() > 0 &&
-             request.resource.data.barcode_id is string && request.resource.data.barcode_id.size() == 8 &&
-             request.resource.data.department is string &&
-             request.resource.data.checked_in is bool;
-    }
-
-    function isValidTeam() {
-      return request.resource.data.name is string && request.resource.data.name.size() > 0 &&
-             request.resource.data.manual_points is number;
-    }
-
     function isValidVote() {
-      return request.resource.data.team_id is string && request.resource.data.team_id.size() > 0 &&
-             request.resource.data.voter_name is string && request.resource.data.voter_name.size() > 0 &&
+      return request.resource.data.team_id is string && 
+             request.resource.data.voter_name is string && 
              request.resource.data.scores is map &&
              request.resource.data.total_score is number;
     }
@@ -119,19 +80,17 @@ service cloud.firestore {
 
     match /config/voting {
       allow read: if true;
-      allow create, update: if isAdmin() && isValidVotingConfig();
-      allow delete: if false;
+      allow write: if isAdmin();
     }
 
     match /teams/{teamId} {
       allow read: if true;
-      allow create, update: if isAdmin() && isValidTeam();
-      allow delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
     match /votes/{voteId} {
-      allow read: if true;
-      allow create: if isValidVote();
+      allow read, list: if true;
+      allow create: if true; // Allow anyone to vote
       allow update, delete: if isAdmin();
     }
 

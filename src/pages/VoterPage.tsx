@@ -20,6 +20,7 @@ export default function VoterPage() {
   const [voterName, setVoterName] = useState('');
   const [selectedTeam, setSelectedTeam] = useState<string | null>(searchParams.get('teamId'));
   const [scores, setScores] = useState<Record<string, number>>({});
+  const [isLocked, setIsLocked] = useState(!!searchParams.get('teamId'));
 
   useEffect(() => {
     const qTeams = query(collection(db, 'teams'));
@@ -72,6 +73,10 @@ export default function VoterPage() {
     }
     if (!selectedTeam) {
       setError('Please select a team to vote for.');
+      return;
+    }
+    if (categories.length === 0) {
+      setError('Voting is not yet configured. Please contact the administrator.');
       return;
     }
 
@@ -160,7 +165,7 @@ export default function VoterPage() {
             {/* Team Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-4">
-                Select Team
+                {isLocked ? 'Voting For:' : 'Select Team'}
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {teams.length === 0 ? (
@@ -168,16 +173,18 @@ export default function VoterPage() {
                     No teams available.
                   </div>
                 ) : (
-                  teams.map((team) => (
+                  teams
+                    .filter(t => !isLocked || t.id === selectedTeam)
+                    .map((team) => (
                     <button
                       type="button"
                       key={team.id}
-                      onClick={() => setSelectedTeam(team.id)}
+                      onClick={() => !isLocked && setSelectedTeam(team.id)}
                       className={`p-4 rounded-xl border-2 text-left transition-all ${
                         selectedTeam === team.id
                           ? 'border-indigo-600 bg-indigo-50 ring-2 ring-indigo-600 ring-offset-2'
                           : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
-                      }`}
+                      } ${isLocked ? 'cursor-default' : 'cursor-pointer'}`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
@@ -196,39 +203,46 @@ export default function VoterPage() {
             </div>
 
             {/* Scoring Categories */}
-            {categories.length > 0 && selectedTeam && (
+            {selectedTeam && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <label className="block text-sm font-medium text-gray-700 mb-4">
                   Scores (0 - 100)
                 </label>
-                <div className="space-y-4 bg-gray-50 p-6 rounded-xl border border-gray-200">
-                  {categories.map((category) => (
-                    <div key={category} className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-2 flex-1">
-                        <Star className="w-5 h-5 text-yellow-500" />
-                        <span className="font-medium text-gray-700">{category}</span>
+                {categories.length > 0 ? (
+                  <div className="space-y-4 bg-gray-50 p-6 rounded-xl border border-gray-200">
+                    {categories.map((category) => (
+                      <div key={category} className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 flex-1">
+                          <Star className="w-5 h-5 text-yellow-500" />
+                          <span className="font-medium text-gray-700">{category}</span>
+                        </div>
+                        <div className="w-32">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={scores[category] === 0 ? '' : scores[category]}
+                            onChange={(e) => handleScoreChange(category, e.target.value)}
+                            className="block w-full text-center text-xl font-bold p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="0"
+                            required
+                          />
+                        </div>
                       </div>
-                      <div className="w-32">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={scores[category] === 0 ? '' : scores[category]}
-                          onChange={(e) => handleScoreChange(category, e.target.value)}
-                          className="block w-full text-center text-xl font-bold p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="0"
-                          required
-                        />
-                      </div>
+                    ))}
+                    <div className="pt-4 mt-4 border-t border-gray-200 flex justify-between items-center">
+                      <span className="font-bold text-gray-900">Total Score:</span>
+                      <span className="text-2xl font-bold text-indigo-600">
+                        {Object.values(scores).reduce((sum: number, score: number) => sum + score, 0)}
+                      </span>
                     </div>
-                  ))}
-                  <div className="pt-4 mt-4 border-t border-gray-200 flex justify-between items-center">
-                    <span className="font-bold text-gray-900">Total Score:</span>
-                    <span className="text-2xl font-bold text-indigo-600">
-                      {Object.values(scores).reduce((sum: number, score: number) => sum + score, 0)}
-                    </span>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-center">
+                    <p className="font-medium">No scoring categories have been set up yet.</p>
+                    <p className="text-sm mt-1">Please wait for the administrator to configure the criteria.</p>
+                  </div>
+                )}
               </div>
             )}
 
