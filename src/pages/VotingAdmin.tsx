@@ -28,6 +28,13 @@ export default function VotingAdmin() {
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [selectedTeamsForLink, setSelectedTeamsForLink] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [editTeamName, setEditTeamName] = useState('');
+  const [editTeamPoints, setEditTeamPoints] = useState(0);
+  const [editingVoteId, setEditingVoteId] = useState<string | null>(null);
+  const [editVoteScore, setEditVoteScore] = useState<number>(0);
+  const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
+  const [deletingVoteId, setDeletingVoteId] = useState<string | null>(null);
 
   useEffect(() => {
     // Debugging: Log current user info
@@ -98,9 +105,9 @@ export default function VotingAdmin() {
   };
 
   const handleDeleteTeam = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this team?')) return;
     try {
       await deleteDoc(doc(db, 'teams', id));
+      setDeletingTeamId(null);
     } catch (err) {
       console.error('Error deleting team:', err);
     }
@@ -125,6 +132,42 @@ export default function VotingAdmin() {
       });
     } catch (err) {
       console.error('Error setting points:', err);
+    }
+  };
+
+  const handleEditTeamSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeam || !editTeamName.trim()) return;
+    try {
+      await updateDoc(doc(db, 'teams', editingTeam.id), {
+        name: editTeamName.trim(),
+        manual_points: editTeamPoints
+      });
+      setEditingTeam(null);
+      setEditingVoteId(null);
+    } catch (err: any) {
+      console.error('Error updating team:', err);
+      alert(`Failed to update team: ${err.message}`);
+    }
+  };
+
+  const handleSaveVoteEdit = async (voteId: string) => {
+    try {
+      await updateDoc(doc(db, 'votes', voteId), {
+        total_score: editVoteScore
+      });
+      setEditingVoteId(null);
+    } catch (err) {
+      console.error('Error updating vote:', err);
+    }
+  };
+
+  const handleDeleteVote = async (voteId: string) => {
+    try {
+      await deleteDoc(doc(db, 'votes', voteId));
+      setDeletingVoteId(null);
+    } catch (err) {
+      console.error('Error deleting vote:', err);
     }
   };
 
@@ -273,12 +316,31 @@ export default function VotingAdmin() {
                           </div>
                           
                           <button
-                            onClick={() => handleDeleteTeam(team.id)}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full ml-2"
-                            title="Delete Team"
+                            onClick={() => {
+                              setEditingTeam(team);
+                              setEditTeamName(team.name);
+                              setEditTeamPoints(team.manual_points);
+                            }}
+                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full ml-2"
+                            title="Edit Team"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Edit2 className="w-4 h-4" />
                           </button>
+                          
+                          {deletingTeamId === team.id ? (
+                            <div className="flex items-center gap-1 ml-2 bg-red-50 p-1 rounded-lg border border-red-100">
+                              <button onClick={() => handleDeleteTeam(team.id)} className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1">Confirm</button>
+                              <button onClick={() => setDeletingTeamId(null)} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2 py-1">Cancel</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setDeletingTeamId(team.id)}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full"
+                              title="Delete Team"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -390,6 +452,114 @@ export default function VotingAdmin() {
                   </a>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Team Modal */}
+      {editingTeam && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900">Edit Team</h3>
+              <button onClick={() => setEditingTeam(null)} className="text-gray-400 hover:text-gray-600">
+                <Plus className="w-6 h-6 rotate-45" />
+              </button>
+            </div>
+            <div className="p-6">
+              <form onSubmit={handleEditTeamSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Team Name</label>
+                  <input
+                    type="text"
+                    value={editTeamName}
+                    onChange={(e) => setEditTeamName(e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Manual Points</label>
+                  <input
+                    type="number"
+                    value={editTeamPoints}
+                    onChange={(e) => setEditTeamPoints(parseInt(e.target.value) || 0)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
+                  />
+                </div>
+                <div className="pt-4 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTeam(null);
+                      setEditingVoteId(null);
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-6 border-t border-gray-200 pt-4">
+                <h4 className="text-sm font-medium text-gray-900 mb-3">Submitted Votes</h4>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                  {votes.filter(v => v.team_id === editingTeam.id).length === 0 ? (
+                    <p className="text-sm text-gray-500">No votes submitted yet.</p>
+                  ) : (
+                    votes.filter(v => v.team_id === editingTeam.id).map(vote => (
+                      <div key={vote.id} className="flex items-center justify-between bg-gray-50 p-2 rounded border border-gray-100">
+                        {editingVoteId === vote.id ? (
+                          <div className="flex items-center gap-2 w-full">
+                            <span className="text-sm text-gray-700 truncate flex-1">{vote.voter_name}</span>
+                            <input 
+                              type="number" 
+                              value={editVoteScore} 
+                              onChange={(e) => setEditVoteScore(parseInt(e.target.value) || 0)}
+                              className="w-20 p-1 text-sm border rounded focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            <button type="button" onClick={() => handleSaveVoteEdit(vote.id)} className="text-green-600 hover:text-green-700 p-1 bg-green-50 rounded">
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button type="button" onClick={() => setEditingVoteId(null)} className="text-gray-400 hover:text-gray-600 p-1 bg-gray-100 rounded">
+                              <Plus className="w-4 h-4 rotate-45" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 truncate pr-2">
+                              <span className="text-sm font-medium text-gray-900 truncate">{vote.voter_name}</span>
+                              <span className="text-sm text-gray-500">{vote.total_score} pts</span>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button type="button" onClick={() => { setEditingVoteId(vote.id); setEditVoteScore(vote.total_score); }} className="p-1 text-gray-400 hover:text-indigo-600">
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              {deletingVoteId === vote.id ? (
+                                <div className="flex items-center gap-1 bg-red-50 p-1 rounded border border-red-100">
+                                  <button type="button" onClick={() => handleDeleteVote(vote.id)} className="text-xs font-medium text-red-600 hover:text-red-700 px-1">Yes</button>
+                                  <button type="button" onClick={() => setDeletingVoteId(null)} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-1">No</button>
+                                </div>
+                              ) : (
+                                <button type="button" onClick={() => setDeletingVoteId(vote.id)} className="p-1 text-gray-400 hover:text-red-600">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
