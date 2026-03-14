@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, addDoc, serverTimestamp, onSnapshot, doc } from 'firebase/firestore';
+import { collection, query, getDocs, addDoc, serverTimestamp, onSnapshot, doc, getDocFromServer } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { CheckCircle, AlertCircle, Loader2, Users, Star } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Users, Star, Wifi, WifiOff } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
 interface Team {
@@ -15,11 +15,29 @@ export default function VoterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [teams, setTeams] = useState<Team[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<'testing' | 'online' | 'offline'>('testing');
   
   const [voterName, setVoterName] = useState('');
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(searchParams.get('teamIds')?.split(',') || []);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [isLocked, setIsLocked] = useState(!!searchParams.get('teamIds'));
+
+  useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'config', 'default'));
+        setConnectionStatus('online');
+      } catch (err) {
+        console.error("Connection test failed:", err);
+        if (err instanceof Error && err.message.includes('the client is offline')) {
+          setConnectionStatus('offline');
+        } else {
+          setConnectionStatus('online'); // Permission error still means we are "online"
+        }
+      }
+    }
+    testConnection();
+  }, []);
 
   useEffect(() => {
     const qTeams = query(collection(db, 'teams'));
@@ -132,7 +150,12 @@ export default function VoterPage() {
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 bg-gray-50">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden">
-        <div className="bg-indigo-600 p-8 text-center text-white">
+        <div className="bg-indigo-600 p-8 text-center text-white relative">
+          <div className="absolute top-4 right-4">
+            {connectionStatus === 'testing' && <Loader2 className="w-4 h-4 animate-spin opacity-50" />}
+            {connectionStatus === 'online' && <Wifi className="w-4 h-4 text-green-400" title="Connected to Firestore" />}
+            {connectionStatus === 'offline' && <WifiOff className="w-4 h-4 text-red-400" title="Firestore is offline" />}
+          </div>
           <h1 className="text-3xl font-bold mb-2">Cast Your Vote</h1>
           <p className="text-indigo-100">Score the teams based on the criteria</p>
         </div>
