@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Dices, Users, RefreshCw, Trophy, Hash, Settings, Check, RotateCcw } from 'lucide-react';
+import { Dices, Users, RefreshCw, Trophy, Hash, Settings, Check, RotateCcw, PieChart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Team {
@@ -10,7 +10,7 @@ interface Team {
 }
 
 export default function RandomTools() {
-  const [activeTab, setActiveTab] = useState<'number' | 'team'>('number');
+  const [activeTab, setActiveTab] = useState<'number' | 'team' | 'wheel'>('number');
   
   // Random Number Generator State
   const [min, setMin] = useState(1);
@@ -25,6 +25,13 @@ export default function RandomTools() {
   const [isChoosingTeams, setIsChoosingTeams] = useState(false);
   const [pickedTeamIds, setPickedTeamIds] = useState<Set<string>>(new Set());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Picker Wheel State
+  const [wheelMin, setWheelMin] = useState(1);
+  const [wheelMax, setWheelMax] = useState(10);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [wheelRotation, setWheelRotation] = useState(0);
+  const [selectedWheelNumber, setSelectedWheelNumber] = useState<number | null>(null);
 
   useEffect(() => {
     const unsubTeams = onSnapshot(query(collection(db, 'teams')), (snapshot) => {
@@ -110,6 +117,42 @@ export default function RandomTools() {
     }
   };
 
+  const spinWheel = () => {
+    if (wheelMin >= wheelMax) {
+      alert('Minimum must be less than maximum');
+      return;
+    }
+    const range = wheelMax - wheelMin + 1;
+    if (range > 200) {
+      alert('Maximum 200 items allowed on the wheel for performance.');
+      return;
+    }
+
+    setIsSpinning(true);
+    setSelectedWheelNumber(null);
+
+    const winningNumber = Math.floor(Math.random() * range) + wheelMin;
+    const winningIndex = winningNumber - wheelMin;
+    
+    const sliceAngle = 360 / range;
+    const extraSpins = 5 * 360; // 5 full rotations
+    
+    // Calculate the exact rotation needed to land on the center of the winning slice
+    const targetSliceCenter = winningIndex * sliceAngle + sliceAngle / 2;
+    const requiredRotation = 360 - targetSliceCenter;
+    
+    // Add to current rotation to ensure it always spins forward
+    const currentRotMod = wheelRotation % 360;
+    const nextRotation = wheelRotation + extraSpins + ((requiredRotation - currentRotMod + 360) % 360);
+
+    setWheelRotation(nextRotation);
+
+    setTimeout(() => {
+      setIsSpinning(false);
+      setSelectedWheelNumber(winningNumber);
+    }, 3000);
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8 text-center">
@@ -140,6 +183,17 @@ export default function RandomTools() {
         >
           <Users className="w-4 h-4" />
           Random Team
+        </button>
+        <button
+          onClick={() => setActiveTab('wheel')}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-xl transition-all ${
+            activeTab === 'wheel'
+              ? 'bg-white text-pink-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <PieChart className="w-4 h-4" />
+          Picker Wheel
         </button>
       </div>
 
@@ -205,7 +259,7 @@ export default function RandomTools() {
               GENERATE
             </button>
           </motion.div>
-        ) : (
+        ) : activeTab === 'team' ? (
           <motion.div
             key="team-tab"
             initial={{ opacity: 0, y: 10 }}
@@ -339,7 +393,138 @@ export default function RandomTools() {
               PICK TEAMS
             </button>
           </motion.div>
-        )}
+        ) : activeTab === 'wheel' ? (
+          <motion.div
+            key="wheel-tab"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center overflow-hidden"
+          >
+            <div className="w-16 h-16 bg-pink-100 rounded-2xl flex items-center justify-center mb-6">
+              <PieChart className="w-8 h-8 text-pink-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-8">Picker Wheel</h2>
+            
+            <div className="grid grid-cols-2 gap-6 w-full max-w-sm mb-10">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Min Value</label>
+                <input
+                  type="number"
+                  value={wheelMin}
+                  onChange={(e) => setWheelMin(parseInt(e.target.value) || 0)}
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-pink-500 rounded-2xl text-lg font-bold outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Max Value</label>
+                <input
+                  type="number"
+                  value={wheelMax}
+                  onChange={(e) => setWheelMax(parseInt(e.target.value) || 0)}
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-pink-500 rounded-2xl text-lg font-bold outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="relative w-[300px] h-[300px] mx-auto mb-10">
+              {/* Pointer */}
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10 text-gray-800 drop-shadow-md">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L20 10H4L12 2Z" />
+                </svg>
+              </div>
+              
+              {/* Wheel */}
+              <motion.div 
+                className="w-full h-full rounded-full overflow-hidden border-4 border-gray-800 shadow-xl"
+                animate={{ rotate: wheelRotation }}
+                transition={{ duration: 3, ease: [0.2, 0.8, 0.2, 1] }}
+              >
+                <svg width="300" height="300" viewBox="0 0 300 300">
+                  {wheelMax > wheelMin && wheelMax - wheelMin + 1 <= 200 && Array.from({ length: wheelMax - wheelMin + 1 }).map((_, i) => {
+                    const range = wheelMax - wheelMin + 1;
+                    const sliceAngle = 360 / range;
+                    const radius = 150;
+                    const center = 150;
+                    const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+                    
+                    const startAngle = (i * sliceAngle * Math.PI) / 180;
+                    const endAngle = ((i + 1) * sliceAngle * Math.PI) / 180;
+                    
+                    const x1 = center + radius * Math.sin(startAngle);
+                    const y1 = center - radius * Math.cos(startAngle);
+                    const x2 = center + radius * Math.sin(endAngle);
+                    const y2 = center - radius * Math.cos(endAngle);
+                    
+                    const largeArcFlag = sliceAngle > 180 ? 1 : 0;
+                    
+                    const pathData = [
+                      `M ${center} ${center}`,
+                      `L ${x1} ${y1}`,
+                      `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+                      'Z'
+                    ].join(' ');
+
+                    const textAngle = (i * sliceAngle + sliceAngle / 2);
+                    const textRadius = radius * 0.75;
+                    const textX = center + textRadius * Math.sin((textAngle * Math.PI) / 180);
+                    const textY = center - textRadius * Math.cos((textAngle * Math.PI) / 180);
+
+                    return (
+                      <g key={i}>
+                        <path d={pathData} fill={colors[i % colors.length]} stroke="#1f2937" strokeWidth={range > 100 ? "0.5" : "1"} />
+                        {range <= 60 && (
+                          <text 
+                            x={textX} 
+                            y={textY} 
+                            fill="white" 
+                            fontSize={range > 30 ? "10" : "14"} 
+                            fontWeight="bold" 
+                            textAnchor="middle" 
+                            dominantBaseline="middle"
+                            transform={`rotate(${textAngle}, ${textX}, ${textY})`}
+                          >
+                            {wheelMin + i}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                  {/* Handle range = 1 or invalid */}
+                  {(wheelMax <= wheelMin || wheelMax - wheelMin + 1 > 200) && (
+                    <circle cx="150" cy="150" r="150" fill="#e5e7eb" />
+                  )}
+                </svg>
+              </motion.div>
+
+              {/* Center dot */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full border-4 border-gray-800 shadow-sm z-10" />
+            </div>
+
+            <AnimatePresence mode="wait">
+              {selectedWheelNumber !== null && !isSpinning && (
+                <motion.div
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="text-4xl font-black text-pink-600 mb-6 drop-shadow-sm"
+                >
+                  Result: {selectedWheelNumber}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <button
+              onClick={spinWheel}
+              disabled={isSpinning || wheelMin >= wheelMax || wheelMax - wheelMin + 1 > 200}
+              className="w-full max-w-sm py-5 bg-pink-600 text-white rounded-2xl font-black text-lg hover:bg-pink-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 shadow-lg shadow-pink-200"
+            >
+              {isSpinning ? <RefreshCw className="w-6 h-6 animate-spin" /> : <PieChart className="w-6 h-6" />}
+              SPIN WHEEL
+            </button>
+          </motion.div>
+        ) : null}
       </AnimatePresence>
     </div>
   );
