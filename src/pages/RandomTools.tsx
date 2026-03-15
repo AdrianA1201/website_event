@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Dices, Users, RefreshCw, Trophy, Hash, Settings, Check, RotateCcw, PieChart, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -80,8 +80,37 @@ export default function RandomTools() {
       setTeams(t);
     });
 
-    return () => unsubTeams();
+    const unsubConfig = onSnapshot(doc(db, 'config', 'randomTools'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.forcedNumber !== undefined) setForcedNumber(data.forcedNumber);
+        if (data.forcedWheelNumber !== undefined) setForcedWheelNumber(data.forcedWheelNumber);
+      }
+    });
+
+    return () => {
+      unsubTeams();
+      unsubConfig();
+    };
   }, []);
+
+  const updateForcedNumber = async (val: number | null) => {
+    setForcedNumber(val);
+    try {
+      await setDoc(doc(db, 'config', 'randomTools'), { forcedNumber: val }, { merge: true });
+    } catch (e) {
+      console.error('Failed to sync forced number:', e);
+    }
+  };
+
+  const updateForcedWheelNumber = async (val: number | null) => {
+    setForcedWheelNumber(val);
+    try {
+      await setDoc(doc(db, 'config', 'randomTools'), { forcedWheelNumber: val }, { merge: true });
+    } catch (e) {
+      console.error('Failed to sync forced wheel number:', e);
+    }
+  };
 
   const generateRandomNumber = () => {
     if (min >= max) {
@@ -95,7 +124,7 @@ export default function RandomTools() {
       ? forcedNumber
       : Math.floor(Math.random() * (max - min + 1)) + min;
 
-    if (forcedNumber !== null) setForcedNumber(null);
+    if (forcedNumber !== null) updateForcedNumber(null);
 
     // Animation effect
     let count = 0;
@@ -203,7 +232,7 @@ export default function RandomTools() {
     let winningNumber;
     if (forcedWheelNumber !== null && availableNumbers.includes(forcedWheelNumber)) {
       winningNumber = forcedWheelNumber;
-      setForcedWheelNumber(null);
+      updateForcedWheelNumber(null);
     } else {
       const randomIdx = Math.floor(Math.random() * availableNumbers.length);
       winningNumber = availableNumbers[randomIdx];
@@ -336,7 +365,7 @@ export default function RandomTools() {
                       <input
                         type="number"
                         value={forcedNumber === null ? '' : forcedNumber}
-                        onChange={(e) => setForcedNumber(e.target.value ? parseInt(e.target.value) : null)}
+                        onChange={(e) => updateForcedNumber(e.target.value ? parseInt(e.target.value) : null)}
                         placeholder="e.g. 42"
                         className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-indigo-500"
                       />
@@ -576,7 +605,7 @@ export default function RandomTools() {
                       <input
                         type="number"
                         value={forcedWheelNumber === null ? '' : forcedWheelNumber}
-                        onChange={(e) => setForcedWheelNumber(e.target.value ? parseInt(e.target.value) : null)}
+                        onChange={(e) => updateForcedWheelNumber(e.target.value ? parseInt(e.target.value) : null)}
                         placeholder="e.g. 7"
                         className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-pink-500"
                       />
