@@ -17,6 +17,8 @@ export default function RandomTools() {
   const [max, setMax] = useState(100);
   const [randomNumber, setRandomNumber] = useState<number | null>(null);
   const [isGeneratingNumber, setIsGeneratingNumber] = useState(false);
+  const [isNumberSettingsOpen, setIsNumberSettingsOpen] = useState(false);
+  const [forcedNumber, setForcedNumber] = useState<number | null>(null);
 
   // Random Team Chooser State
   const [teams, setTeams] = useState<Team[]>([]);
@@ -32,6 +34,9 @@ export default function RandomTools() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [selectedWheelNumber, setSelectedWheelNumber] = useState<number | null>(null);
+  const [pickedWheelNumbers, setPickedWheelNumbers] = useState<Set<number>>(new Set());
+  const [isWheelSettingsOpen, setIsWheelSettingsOpen] = useState(false);
+  const [forcedWheelNumber, setForcedWheelNumber] = useState<number | null>(null);
 
   useEffect(() => {
     const unsubTeams = onSnapshot(query(collection(db, 'teams')), (snapshot) => {
@@ -53,6 +58,12 @@ export default function RandomTools() {
     setIsGeneratingNumber(true);
     setRandomNumber(null);
     
+    const finalNumber = (forcedNumber !== null && forcedNumber >= min && forcedNumber <= max)
+      ? forcedNumber
+      : Math.floor(Math.random() * (max - min + 1)) + min;
+
+    if (forcedNumber !== null) setForcedNumber(null);
+
     // Animation effect
     let count = 0;
     const interval = setInterval(() => {
@@ -60,7 +71,7 @@ export default function RandomTools() {
       count++;
       if (count > 20) {
         clearInterval(interval);
-        setRandomNumber(Math.floor(Math.random() * (max - min + 1)) + min);
+        setRandomNumber(finalNumber);
         setIsGeneratingNumber(false);
       }
     }, 50);
@@ -117,24 +128,56 @@ export default function RandomTools() {
     }
   };
 
+  const toggleWheelNumber = (num: number) => {
+    setPickedWheelNumbers(prev => {
+      const next = new Set(prev);
+      if (next.has(num)) next.delete(num);
+      else next.add(num);
+      return next;
+    });
+  };
+
+  const resetPickedWheelNumbers = () => {
+    if (window.confirm('Are you sure you want to reset the picked status for all numbers?')) {
+      setPickedWheelNumbers(new Set());
+    }
+  };
+
   const spinWheel = () => {
     if (wheelMin >= wheelMax) {
       alert('Minimum must be less than maximum');
       return;
     }
-    const range = wheelMax - wheelMin + 1;
-    if (range > 200) {
+    const totalItems = wheelMax - wheelMin + 1;
+    if (totalItems > 200) {
       alert('Maximum 200 items allowed on the wheel for performance.');
+      return;
+    }
+
+    const availableNumbers = [];
+    for (let i = wheelMin; i <= wheelMax; i++) {
+      if (!pickedWheelNumbers.has(i)) availableNumbers.push(i);
+    }
+
+    if (availableNumbers.length === 0) {
+      alert('All numbers have been picked! Reset the list in settings to pick again.');
       return;
     }
 
     setIsSpinning(true);
     setSelectedWheelNumber(null);
 
-    const winningNumber = Math.floor(Math.random() * range) + wheelMin;
-    const winningIndex = winningNumber - wheelMin;
+    let winningNumber;
+    if (forcedWheelNumber !== null && availableNumbers.includes(forcedWheelNumber)) {
+      winningNumber = forcedWheelNumber;
+      setForcedWheelNumber(null);
+    } else {
+      const randomIdx = Math.floor(Math.random() * availableNumbers.length);
+      winningNumber = availableNumbers[randomIdx];
+    }
     
-    const sliceAngle = 360 / range;
+    const winningIndex = availableNumbers.indexOf(winningNumber);
+    const sliceAngle = 360 / availableNumbers.length;
     const extraSpins = 5 * 360; // 5 full rotations
     
     // Calculate the exact rotation needed to land on the center of the winning slice
@@ -150,6 +193,7 @@ export default function RandomTools() {
     setTimeout(() => {
       setIsSpinning(false);
       setSelectedWheelNumber(winningNumber);
+      setPickedWheelNumbers(prev => new Set(prev).add(winningNumber));
     }, 3000);
   };
 
@@ -207,11 +251,44 @@ export default function RandomTools() {
             transition={{ duration: 0.2 }}
             className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center"
           >
-            <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mb-6">
+            <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mb-6 relative">
               <Hash className="w-8 h-8 text-indigo-600" />
+              <button
+                onClick={() => setIsNumberSettingsOpen(!isNumberSettingsOpen)}
+                className={`absolute -right-2 -top-2 p-2 rounded-full shadow-md transition-all ${
+                  isNumberSettingsOpen ? 'bg-indigo-600 text-white' : 'bg-white text-gray-400 hover:text-indigo-600'
+                }`}
+              >
+                <Settings className={`w-4 h-4 ${isNumberSettingsOpen ? 'animate-spin-slow' : ''}`} />
+              </button>
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-8">Number Generator</h2>
             
+            <AnimatePresence>
+              {isNumberSettingsOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="w-full max-w-sm mb-8 overflow-hidden"
+                >
+                  <div className="bg-gray-50 p-4 rounded-2xl border-2 border-gray-100 space-y-3">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Force Next Pick (Secret)</label>
+                      <input
+                        type="number"
+                        value={forcedNumber === null ? '' : forcedNumber}
+                        onChange={(e) => setForcedNumber(e.target.value ? parseInt(e.target.value) : null)}
+                        placeholder="e.g. 42"
+                        className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-indigo-500"
+                      />
+                      <p className="text-[10px] text-gray-400">If set, this number will be chosen next. Clears after one use.</p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="grid grid-cols-2 gap-6 w-full max-w-sm mb-10">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Min Value</label>
@@ -402,11 +479,84 @@ export default function RandomTools() {
             transition={{ duration: 0.2 }}
             className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center overflow-hidden"
           >
-            <div className="w-16 h-16 bg-pink-100 rounded-2xl flex items-center justify-center mb-6">
+            <div className="w-16 h-16 bg-pink-100 rounded-2xl flex items-center justify-center mb-6 relative">
               <PieChart className="w-8 h-8 text-pink-600" />
+              <button
+                onClick={() => setIsWheelSettingsOpen(!isWheelSettingsOpen)}
+                className={`absolute -right-2 -top-2 p-2 rounded-full shadow-md transition-all ${
+                  isWheelSettingsOpen ? 'bg-pink-600 text-white' : 'bg-white text-gray-400 hover:text-pink-600'
+                }`}
+              >
+                <Settings className={`w-4 h-4 ${isWheelSettingsOpen ? 'animate-spin-slow' : ''}`} />
+              </button>
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-8">Picker Wheel</h2>
             
+            <AnimatePresence>
+              {isWheelSettingsOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="w-full max-w-sm mb-8 overflow-hidden"
+                >
+                  <div className="bg-gray-50 p-4 rounded-2xl border-2 border-gray-100 space-y-3">
+                    <div className="space-y-2 mb-4 pb-4 border-b border-gray-200">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Force Next Pick (Secret)</label>
+                      <input
+                        type="number"
+                        value={forcedWheelNumber === null ? '' : forcedWheelNumber}
+                        onChange={(e) => setForcedWheelNumber(e.target.value ? parseInt(e.target.value) : null)}
+                        placeholder="e.g. 7"
+                        className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-pink-500"
+                      />
+                      <p className="text-[10px] text-gray-400">If set and available, this number will be chosen next. Clears after one use.</p>
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Pick Status</span>
+                      <button
+                        onClick={resetPickedWheelNumbers}
+                        className="text-[10px] font-bold text-pink-600 hover:text-pink-700 flex items-center gap-1 uppercase tracking-tighter"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Reset All
+                      </button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                      {Array.from({ length: wheelMax >= wheelMin && wheelMax - wheelMin + 1 <= 200 ? wheelMax - wheelMin + 1 : 0 }).map((_, i) => {
+                        const num = wheelMin + i;
+                        return (
+                          <label
+                            key={num}
+                            className="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer transition-colors group"
+                          >
+                            <span className={`text-sm font-medium ${pickedWheelNumbers.has(num) ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              Number {num}
+                            </span>
+                            <div className="relative flex items-center">
+                              <input
+                                type="checkbox"
+                                checked={pickedWheelNumbers.has(num)}
+                                onChange={() => toggleWheelNumber(num)}
+                                className="sr-only"
+                              />
+                              <div className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${
+                                pickedWheelNumbers.has(num) 
+                                  ? 'bg-pink-600 border-pink-600' 
+                                  : 'border-gray-200 group-hover:border-pink-300'
+                              }`}>
+                                {pickedWheelNumbers.has(num) && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="grid grid-cols-2 gap-6 w-full max-w-sm mb-10">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Min Value</label>
@@ -443,59 +593,79 @@ export default function RandomTools() {
                 transition={{ duration: 3, ease: [0.2, 0.8, 0.2, 1] }}
               >
                 <svg width="300" height="300" viewBox="0 0 300 300">
-                  {wheelMax > wheelMin && wheelMax - wheelMin + 1 <= 200 && Array.from({ length: wheelMax - wheelMin + 1 }).map((_, i) => {
-                    const range = wheelMax - wheelMin + 1;
-                    const sliceAngle = 360 / range;
-                    const radius = 150;
-                    const center = 150;
-                    const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+                  {(() => {
+                    const availableNumbers = [];
+                    if (wheelMax >= wheelMin && wheelMax - wheelMin + 1 <= 200) {
+                      for (let i = wheelMin; i <= wheelMax; i++) {
+                        if (!pickedWheelNumbers.has(i)) availableNumbers.push(i);
+                      }
+                    }
+                    const range = availableNumbers.length;
                     
-                    const startAngle = (i * sliceAngle * Math.PI) / 180;
-                    const endAngle = ((i + 1) * sliceAngle * Math.PI) / 180;
+                    if (range === 0 || wheelMax < wheelMin || wheelMax - wheelMin + 1 > 200) {
+                       return <circle cx="150" cy="150" r="150" fill="#e5e7eb" />;
+                    }
                     
-                    const x1 = center + radius * Math.sin(startAngle);
-                    const y1 = center - radius * Math.cos(startAngle);
-                    const x2 = center + radius * Math.sin(endAngle);
-                    const y2 = center - radius * Math.cos(endAngle);
+                    if (range === 1) {
+                       return (
+                         <g>
+                           <circle cx="150" cy="150" r="150" fill="#4f46e5" />
+                           <text x="150" y="150" fill="white" fontSize="24" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
+                             {availableNumbers[0]}
+                           </text>
+                         </g>
+                       );
+                    }
                     
-                    const largeArcFlag = sliceAngle > 180 ? 1 : 0;
-                    
-                    const pathData = [
-                      `M ${center} ${center}`,
-                      `L ${x1} ${y1}`,
-                      `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-                      'Z'
-                    ].join(' ');
+                    return availableNumbers.map((num, i) => {
+                      const sliceAngle = 360 / range;
+                      const radius = 150;
+                      const center = 150;
+                      const colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+                      
+                      const startAngle = (i * sliceAngle * Math.PI) / 180;
+                      const endAngle = ((i + 1) * sliceAngle * Math.PI) / 180;
+                      
+                      const x1 = center + radius * Math.sin(startAngle);
+                      const y1 = center - radius * Math.cos(startAngle);
+                      const x2 = center + radius * Math.sin(endAngle);
+                      const y2 = center - radius * Math.cos(endAngle);
+                      
+                      const largeArcFlag = sliceAngle > 180 ? 1 : 0;
+                      
+                      const pathData = [
+                        `M ${center} ${center}`,
+                        `L ${x1} ${y1}`,
+                        `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+                        'Z'
+                      ].join(' ');
 
-                    const textAngle = (i * sliceAngle + sliceAngle / 2);
-                    const textRadius = radius * 0.75;
-                    const textX = center + textRadius * Math.sin((textAngle * Math.PI) / 180);
-                    const textY = center - textRadius * Math.cos((textAngle * Math.PI) / 180);
+                      const textAngle = (i * sliceAngle + sliceAngle / 2);
+                      const textRadius = radius * 0.75;
+                      const textX = center + textRadius * Math.sin((textAngle * Math.PI) / 180);
+                      const textY = center - textRadius * Math.cos((textAngle * Math.PI) / 180);
 
-                    return (
-                      <g key={i}>
-                        <path d={pathData} fill={colors[i % colors.length]} stroke="#1f2937" strokeWidth={range > 100 ? "0.5" : "1"} />
-                        {range <= 60 && (
-                          <text 
-                            x={textX} 
-                            y={textY} 
-                            fill="white" 
-                            fontSize={range > 30 ? "10" : "14"} 
-                            fontWeight="bold" 
-                            textAnchor="middle" 
-                            dominantBaseline="middle"
-                            transform={`rotate(${textAngle}, ${textX}, ${textY})`}
-                          >
-                            {wheelMin + i}
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
-                  {/* Handle range = 1 or invalid */}
-                  {(wheelMax <= wheelMin || wheelMax - wheelMin + 1 > 200) && (
-                    <circle cx="150" cy="150" r="150" fill="#e5e7eb" />
-                  )}
+                      return (
+                        <g key={num}>
+                          <path d={pathData} fill={colors[i % colors.length]} stroke="#1f2937" strokeWidth={range > 100 ? "0.5" : "1"} />
+                          {range <= 60 && (
+                            <text 
+                              x={textX} 
+                              y={textY} 
+                              fill="white" 
+                              fontSize={range > 30 ? "10" : "14"} 
+                              fontWeight="bold" 
+                              textAnchor="middle" 
+                              dominantBaseline="middle"
+                              transform={`rotate(${textAngle}, ${textX}, ${textY})`}
+                            >
+                              {num}
+                            </text>
+                          )}
+                        </g>
+                      );
+                    });
+                  })()}
                 </svg>
               </motion.div>
 
