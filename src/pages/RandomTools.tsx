@@ -1,8 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Dices, Users, RefreshCw, Trophy, Hash, Settings, Check, RotateCcw, PieChart } from 'lucide-react';
+import { Dices, Users, RefreshCw, Trophy, Hash, Settings, Check, RotateCcw, PieChart, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+const playTick = (audioCtx: AudioContext) => {
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.05);
+  } catch (e) { console.error(e); }
+};
+
+const playTada = (audioCtx: AudioContext) => {
+  try {
+    [440, 554.37, 659.25, 880].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+      osc.start(audioCtx.currentTime + i * 0.1);
+      osc.stop(audioCtx.currentTime + 1.5 + i * 0.1);
+    });
+  } catch (e) { console.error(e); }
+};
 
 interface Team {
   id: string;
@@ -37,6 +69,7 @@ export default function RandomTools() {
   const [pickedWheelNumbers, setPickedWheelNumbers] = useState<Set<number>>(new Set());
   const [isWheelSettingsOpen, setIsWheelSettingsOpen] = useState(false);
   const [forcedWheelNumber, setForcedWheelNumber] = useState<number | null>(null);
+  const [isSoundEnabled, setIsSoundEnabled] = useState(true);
 
   useEffect(() => {
     const unsubTeams = onSnapshot(query(collection(db, 'teams')), (snapshot) => {
@@ -190,10 +223,35 @@ export default function RandomTools() {
 
     setWheelRotation(nextRotation);
 
+    let audioCtx: AudioContext | null = null;
+    if (isSoundEnabled) {
+      try {
+        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        
+        let ticks = 0;
+        const totalTicks = 30;
+        const playNextTick = () => {
+          if (ticks >= totalTicks) return;
+          if (audioCtx) playTick(audioCtx);
+          ticks++;
+          const progress = ticks / totalTicks;
+          const nextDelay = 20 + (progress * progress) * 200; 
+          setTimeout(playNextTick, nextDelay);
+        };
+        playNextTick();
+      } catch (e) {
+        console.error("Audio context error", e);
+      }
+    }
+
     setTimeout(() => {
       setIsSpinning(false);
       setSelectedWheelNumber(winningNumber);
       setPickedWheelNumbers(prev => new Set(prev).add(winningNumber));
+      if (isSoundEnabled && audioCtx) {
+        playTada(audioCtx);
+      }
     }, 3000);
   };
 
@@ -501,6 +559,18 @@ export default function RandomTools() {
                   className="w-full max-w-sm mb-8 overflow-hidden"
                 >
                   <div className="bg-gray-50 p-4 rounded-2xl border-2 border-gray-100 space-y-3">
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                      <div className="flex items-center gap-2">
+                        {isSoundEnabled ? <Volume2 className="w-4 h-4 text-pink-600" /> : <VolumeX className="w-4 h-4 text-gray-400" />}
+                        <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Sound Effects</span>
+                      </div>
+                      <button
+                        onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isSoundEnabled ? 'bg-pink-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isSoundEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
                     <div className="space-y-2 mb-4 pb-4 border-b border-gray-200">
                       <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Force Next Pick (Secret)</label>
                       <input
