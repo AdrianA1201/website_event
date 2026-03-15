@@ -4,6 +4,7 @@ import { Moon, Clock, MapPin, Volume2, VolumeX, ChevronDown } from 'lucide-react
 const CITIES = [
   { name: 'Auto (Current Location)', value: 'auto' },
   { name: 'Jakarta', lat: -6.2088, lng: 106.8456 },
+  { name: 'Bandar Lampung', lat: -5.4500, lng: 105.2667 },
   { name: 'Surabaya', lat: -7.2504, lng: 112.7688 },
   { name: 'Bandung', lat: -6.9175, lng: 107.6191 },
   { name: 'Medan', lat: 3.5952, lng: 98.6722 },
@@ -65,8 +66,17 @@ export default function IftarCountdown() {
           if (customName) {
             setLocationName(customName);
           } else {
-            const city = timezone.split('/')[1]?.replace('_', ' ') || 'Local';
-            setLocationName(city);
+            try {
+              // Use a free reverse geocoding API to get the actual city name
+              const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+              const geoData = await geoRes.json();
+              const city = geoData.city || geoData.locality || geoData.principalSubdivision || timezone.split('/')[1]?.replace('_', ' ') || 'Local';
+              setLocationName(city);
+            } catch (e) {
+              // Fallback to timezone name if geocoding fails
+              const city = timezone.split('/')[1]?.replace('_', ' ') || 'Local';
+              setLocationName(city);
+            }
           }
         } else {
           setError('Failed to load prayer times');
