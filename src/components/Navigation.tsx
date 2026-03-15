@@ -3,6 +3,7 @@ import { Barcode, LayoutDashboard, Settings, Users, UserCog, LogOut, Menu, X, Tr
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useState } from 'react';
+import IftarCountdown from './IftarCountdown';
 
 export default function Navigation() {
   const location = useLocation();
@@ -66,7 +67,8 @@ export default function Navigation() {
               })}
             </div>
           </div>
-          <div className="hidden sm:flex items-center">
+          <div className="hidden sm:flex items-center gap-4">
+            <IftarCountdown />
             <button
               onClick={handleLogout}
               className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -95,6 +97,9 @@ export default function Navigation() {
       {isMobileMenuOpen && (
         <div className="sm:hidden">
           <div className="pt-2 pb-3 space-y-1">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <IftarCountdown />
+            </div>
             {links.map((link) => {
               const Icon = link.icon;
               const isActive = location.pathname === link.to;
