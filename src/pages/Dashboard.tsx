@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { Users, CheckCircle, Clock, Search, RefreshCw } from 'lucide-react';
+import { Users, CheckCircle, Clock, Search, RefreshCw, Loader2 } from 'lucide-react';
 import { collection, getDocs, query, where, updateDoc, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -31,6 +31,8 @@ export default function Dashboard() {
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'checked_in' | 'pending'>('all');
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 50;
 
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const lastScanRef = useRef<{ text: string; time: number } | null>(null);
@@ -140,6 +142,11 @@ export default function Dashboard() {
     setScanning(false);
   };
 
+  // Reset page when search query or filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, filterStatus]);
+
   const filteredRegistrations = registrations.filter((reg) => {
     const matchesSearch = reg.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       reg.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -149,6 +156,20 @@ export default function Dashboard() {
     if (filterStatus === 'pending') return matchesSearch && !reg.checked_in;
     return matchesSearch;
   });
+
+  const totalPages = Math.ceil(filteredRegistrations.length / itemsPerPage);
+  const paginatedRegistrations = filteredRegistrations.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -335,14 +356,14 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredRegistrations.length === 0 ? (
+                  {paginatedRegistrations.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
                         No registrations found.
                       </td>
                     </tr>
                   ) : (
-                    filteredRegistrations.map((reg) => (
+                    paginatedRegistrations.map((reg) => (
                       <tr key={reg.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
@@ -389,6 +410,55 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+                <div className="flex-1 flex justify-between sm:hidden">
+                  <button
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                    disabled={page === 1}
+                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage(Math.min(totalPages, page + 1))}
+                    disabled={page === totalPages}
+                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-gray-700">
+                      Showing <span className="font-medium">{(page - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(page * itemsPerPage, filteredRegistrations.length)}</span> of <span className="font-medium">{filteredRegistrations.length}</span> results
+                    </p>
+                  </div>
+                  <div>
+                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                      <button
+                        onClick={() => setPage(Math.max(1, page - 1))}
+                        disabled={page === 1}
+                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Previous</span>
+                        &larr;
+                      </button>
+                      <button
+                        onClick={() => setPage(Math.min(totalPages, page + 1))}
+                        disabled={page === totalPages}
+                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Next</span>
+                        &rarr;
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
