@@ -63,12 +63,13 @@ export default function RandomTools() {
   // Picker Wheel State
   const [wheelMin, setWheelMin] = useState(1);
   const [wheelMax, setWheelMax] = useState(10);
+  const [wheelPickCount, setWheelPickCount] = useState(1);
   const [isSpinning, setIsSpinning] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
-  const [selectedWheelNumber, setSelectedWheelNumber] = useState<number | null>(null);
+  const [selectedWheelNumbers, setSelectedWheelNumbers] = useState<number[]>([]);
   const [pickedWheelNumbers, setPickedWheelNumbers] = useState<Set<number>>(new Set());
   const [isWheelSettingsOpen, setIsWheelSettingsOpen] = useState(false);
-  const [forcedWheelNumber, setForcedWheelNumber] = useState<number | null>(null);
+  const [forcedWheelNumbers, setForcedWheelNumbers] = useState<string>('');
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
 
   useEffect(() => {
@@ -84,7 +85,7 @@ export default function RandomTools() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.forcedNumber !== undefined) setForcedNumber(data.forcedNumber);
-        if (data.forcedWheelNumber !== undefined) setForcedWheelNumber(data.forcedWheelNumber);
+        if (data.forcedWheelNumbers !== undefined) setForcedWheelNumbers(data.forcedWheelNumbers);
       }
     });
 
@@ -103,12 +104,12 @@ export default function RandomTools() {
     }
   };
 
-  const updateForcedWheelNumber = async (val: number | null) => {
-    setForcedWheelNumber(val);
+  const updateForcedWheelNumbers = async (val: string) => {
+    setForcedWheelNumbers(val);
     try {
-      await setDoc(doc(db, 'config', 'randomTools'), { forcedWheelNumber: val }, { merge: true });
+      await setDoc(doc(db, 'config', 'randomTools'), { forcedWheelNumbers: val }, { merge: true });
     } catch (e) {
-      console.error('Failed to sync forced wheel number:', e);
+      console.error('Failed to sync forced wheel numbers:', e);
     }
   };
 
@@ -227,18 +228,40 @@ export default function RandomTools() {
     }
 
     setIsSpinning(true);
-    setSelectedWheelNumber(null);
+    setSelectedWheelNumbers([]);
 
-    let winningNumber;
-    if (forcedWheelNumber !== null && availableNumbers.includes(forcedWheelNumber)) {
-      winningNumber = forcedWheelNumber;
-      updateForcedWheelNumber(null);
-    } else {
+    const picksNeeded = Math.min(wheelPickCount, availableNumbers.length);
+    const winningNumbers: number[] = [];
+    
+    // Parse forced numbers
+    const forcedArr = forcedWheelNumbers
+      .split(',')
+      .map(s => parseInt(s.trim()))
+      .filter(n => !isNaN(n) && availableNumbers.includes(n));
+
+    // Pick forced numbers first
+    for (const fn of forcedArr) {
+      if (winningNumbers.length < picksNeeded && !winningNumbers.includes(fn)) {
+        winningNumbers.push(fn);
+      }
+    }
+
+    // Pick random numbers for the rest
+    while (winningNumbers.length < picksNeeded) {
       const randomIdx = Math.floor(Math.random() * availableNumbers.length);
-      winningNumber = availableNumbers[randomIdx];
+      const num = availableNumbers[randomIdx];
+      if (!winningNumbers.includes(num)) {
+        winningNumbers.push(num);
+      }
+    }
+
+    if (forcedWheelNumbers !== '') {
+      updateForcedWheelNumbers('');
     }
     
-    const winningIndex = availableNumbers.indexOf(winningNumber);
+    // The wheel visually lands on the first picked number
+    const firstWinningNumber = winningNumbers[0];
+    const winningIndex = availableNumbers.indexOf(firstWinningNumber);
     const sliceAngle = 360 / availableNumbers.length;
     const extraSpins = 5 * 360; // 5 full rotations
     
@@ -276,8 +299,12 @@ export default function RandomTools() {
 
     setTimeout(() => {
       setIsSpinning(false);
-      setSelectedWheelNumber(winningNumber);
-      setPickedWheelNumbers(prev => new Set(prev).add(winningNumber));
+      setSelectedWheelNumbers(winningNumbers);
+      setPickedWheelNumbers(prev => {
+        const next = new Set(prev);
+        winningNumbers.forEach(n => next.add(n));
+        return next;
+      });
       if (isSoundEnabled && audioCtx) {
         playTada(audioCtx);
       }
@@ -601,15 +628,15 @@ export default function RandomTools() {
                       </button>
                     </div>
                     <div className="space-y-2 mb-4 pb-4 border-b border-gray-200">
-                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Force Next Pick (Secret)</label>
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Force Next Pick(s) (Secret)</label>
                       <input
-                        type="number"
-                        value={forcedWheelNumber === null ? '' : forcedWheelNumber}
-                        onChange={(e) => updateForcedWheelNumber(e.target.value ? parseInt(e.target.value) : null)}
-                        placeholder="e.g. 7"
+                        type="text"
+                        value={forcedWheelNumbers}
+                        onChange={(e) => updateForcedWheelNumbers(e.target.value)}
+                        placeholder="e.g. 7, 12, 42"
                         className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-pink-500"
                       />
-                      <p className="text-[10px] text-gray-400">If set and available, this number will be chosen next. Clears after one use.</p>
+                      <p className="text-[10px] text-gray-400">If set and available, these numbers will be chosen next. Separate multiple numbers with commas. Clears after one use.</p>
                     </div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Pick Status</span>
@@ -656,7 +683,7 @@ export default function RandomTools() {
               )}
             </AnimatePresence>
 
-            <div className="grid grid-cols-2 gap-6 w-full max-w-sm mb-10">
+            <div className="grid grid-cols-2 gap-6 w-full max-w-sm mb-6">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Min Value</label>
                 <input
@@ -675,6 +702,18 @@ export default function RandomTools() {
                   className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-pink-500 rounded-2xl text-lg font-bold outline-none transition-all"
                 />
               </div>
+            </div>
+
+            <div className="w-full max-w-sm mb-10">
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 text-center">Number of items to pick</label>
+              <input
+                type="number"
+                min="1"
+                max={wheelMax >= wheelMin ? wheelMax - wheelMin + 1 - pickedWheelNumbers.size : 1}
+                value={wheelPickCount}
+                onChange={(e) => setWheelPickCount(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-pink-500 rounded-2xl text-lg font-bold text-center outline-none transition-all"
+              />
             </div>
 
             <div className="relative w-[300px] h-[300px] mx-auto mb-10">
@@ -773,13 +812,20 @@ export default function RandomTools() {
             </div>
 
             <AnimatePresence mode="wait">
-              {selectedWheelNumber !== null && !isSpinning && (
+              {selectedWheelNumbers.length > 0 && !isSpinning && (
                 <motion.div
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="text-4xl font-black text-pink-600 mb-6 drop-shadow-sm"
+                  className="flex flex-col items-center mb-6"
                 >
-                  Result: {selectedWheelNumber}
+                  <span className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Result{selectedWheelNumbers.length > 1 ? 's' : ''}</span>
+                  <div className="flex flex-wrap justify-center gap-3">
+                    {selectedWheelNumbers.map((num, idx) => (
+                      <div key={idx} className="text-4xl font-black text-pink-600 drop-shadow-sm bg-pink-50 px-4 py-2 rounded-xl border-2 border-pink-100">
+                        {num}
+                      </div>
+                    ))}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
